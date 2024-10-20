@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 use mode::Mode;
+use parened_expr::optional_paren;
 use pretty::BoxDoc;
 use typst_syntax::{ast, ast::*, SyntaxKind, SyntaxNode};
 
@@ -154,6 +155,7 @@ impl PrettyPrinter {
             ast::Expr::MathPrimes(mp) => self.convert_math_primes(mp),
             ast::Expr::MathFrac(mf) => self.convert_math_frac(mf),
             ast::Expr::MathRoot(mr) => self.convert_math_root(mr),
+            ast::Expr::MathShorthand(ms) => trivia(ms.to_untyped()),
             ast::Expr::Ident(i) => self.convert_ident(i),
             ast::Expr::None(n) => self.convert_none(n),
             ast::Expr::Auto(a) => self.convert_auto(a),
@@ -904,10 +906,15 @@ impl PrettyPrinter {
             doc = doc.append(BoxDoc::space());
             let imports = match imports {
                 Imports::Wildcard => BoxDoc::text("*"),
-                Imports::Items(i) => BoxDoc::intersperse(
-                    i.iter().map(|item| self.convert_import_item(item)),
-                    BoxDoc::text(",").append(BoxDoc::space()),
-                ),
+                Imports::Items(i) => {
+                    let trailing_comma = BoxDoc::flat_alt(BoxDoc::text(","), BoxDoc::nil());
+                    let inner = BoxDoc::intersperse(
+                        i.iter().map(|item| self.convert_import_item(item)),
+                        BoxDoc::text(",").append(BoxDoc::line()),
+                    )
+                    .append(trailing_comma);
+                    optional_paren(inner)
+                }
             };
             doc = doc.append(imports.group());
         }
@@ -916,7 +923,9 @@ impl PrettyPrinter {
 
     fn convert_import_item<'a>(&'a self, import_item: ImportItem<'a>) -> BoxDoc<'a, ()> {
         match import_item {
-            ImportItem::Simple(s) => self.convert_ident(s),
+            ImportItem::Simple(s) => {
+                BoxDoc::intersperse(s.iter().map(|id| self.convert_ident(id)), BoxDoc::text("."))
+            }
             ImportItem::Renamed(r) => self
                 .convert_ident(r.original_name())
                 .append(BoxDoc::space())
