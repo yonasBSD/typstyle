@@ -1,16 +1,6 @@
-use std::borrow::Cow;
-use std::cell::RefCell;
-use std::collections::HashMap;
+pub mod config;
 
-use itertools::Itertools;
-use mode::Mode;
-use parened_expr::optional_paren;
-use pretty::BoxDoc;
-use typst_syntax::{ast, ast::*, SyntaxKind, SyntaxNode};
-
-use crate::attr::Attributes;
-use crate::util::{comma_seprated_items, pretty_items, FoldStyle};
-
+mod comment;
 mod dot_chain;
 mod func_call;
 mod mode;
@@ -18,8 +8,24 @@ mod parened_expr;
 mod table;
 mod util;
 
+use std::borrow::Cow;
+use std::cell::RefCell;
+use std::collections::HashMap;
+
+use config::PrinterConfig;
+use itertools::Itertools;
+use mode::Mode;
+use parened_expr::optional_paren;
+use pretty::BoxDoc;
+use typst_syntax::{ast, ast::*, SyntaxKind, SyntaxNode};
+
+use crate::attr::Attributes;
+use crate::util::{comma_separated_items, pretty_items, FoldStyle};
+use comment::{block_comment, comment, line_comment};
+
 #[derive(Debug, Default)]
 pub struct PrettyPrinter {
+    config: PrinterConfig,
     attr_map: HashMap<SyntaxNode, Attributes>,
     mode: RefCell<Vec<Mode>>,
 }
@@ -27,9 +33,14 @@ pub struct PrettyPrinter {
 impl PrettyPrinter {
     pub fn new(attr_map: HashMap<SyntaxNode, Attributes>) -> Self {
         Self {
+            config: Default::default(),
             attr_map,
             mode: vec![].into(),
         }
+    }
+
+    fn get_fold_style<'a>(&self, node: impl AstNode<'a>) -> FoldStyle {
+        FoldStyle::from_attr(self.attr_map.get(node.to_untyped()))
     }
 }
 
@@ -105,8 +116,13 @@ impl PrettyPrinter {
                 } else if let Some(expr) = node.cast::<Expr>() {
                     let expr_doc = self.convert_expr(expr);
                     doc = doc.append(expr_doc);
-                } else {
+                } else if matches!(
+                    node.kind(),
+                    SyntaxKind::LineComment | SyntaxKind::BlockComment
+                ) {
                     doc = doc.append(comment(node));
+                } else {
+                    doc = doc.append(trivia_prefix(node));
                 }
             }
         }
@@ -410,14 +426,17 @@ impl PrettyPrinter {
     fn convert_code_block<'a>(&'a self, code_block: CodeBlock<'a>) -> BoxDoc<'a, ()> {
         let _g = self.with_mode(Mode::Code);
         let mut code_nodes = vec![];
+        let mut has_comment = false;
         for node in code_block.to_untyped().children() {
             if let Some(code) = node.cast::<Code>() {
                 code_nodes.extend(code.to_untyped().children());
+            } else if node.kind() == SyntaxKind::Space {
+                code_nodes.push(node);
             } else if node.kind() == SyntaxKind::LineComment
                 || node.kind() == SyntaxKind::BlockComment
-                || node.kind() == SyntaxKind::Space
             {
                 code_nodes.push(node);
+                has_comment = true;
             }
         }
         let codes = self.convert_code(code_nodes);
@@ -427,56 +446,55 @@ impl PrettyPrinter {
             BoxDoc::nil(),
             (BoxDoc::text("{"), BoxDoc::text("}")),
             true,
-            FoldStyle::Never,
+            if codes.len() == 1 && !has_comment {
+                self.get_fold_style(code_block)
+            } else {
+                FoldStyle::Never
+            },
         );
         doc
     }
 
     fn convert_code<'a>(&'a self, code: Vec<&'a SyntaxNode>) -> Vec<BoxDoc<'a, ()>> {
-        let is_attached_comment = |idx: usize| {
-            debug_assert!(idx < code.len());
-            if idx == 0 || idx == code.len() - 1 {
-                return false;
-            }
-            let prev = code[idx - 1];
-            let curr = code[idx];
-            let next = code[idx + 1];
-            let prev_cond = prev.cast::<Expr>().is_some()
-                || if let Some(space) = prev.cast::<Space>() {
-                    !space.to_untyped().text().contains('\n')
-                } else {
-                    false
-                };
-            let curr_cond =
-                curr.kind() == SyntaxKind::LineComment || curr.kind() == SyntaxKind::BlockComment;
-            let next_cond = if let Some(next) = next.cast::<Space>() {
-                next.to_untyped().text().contains('\n')
-            } else {
-                false
-            };
-            prev_cond && curr_cond && next_cond
-        };
+        let mut code = &code[..];
+
+        // Strip trailing empty lines
+        while (code.last()).is_some_and(|last| last.kind() == SyntaxKind::Space) {
+            code = &code[..code.len() - 1];
+        }
+
         let mut codes: Vec<_> = vec![];
-        for (i, node) in code.iter().enumerate() {
+        let mut can_attach_comment = false; // Whether a comment can follow the next node.
+        for node in code {
             if let Some(expr) = node.cast::<Expr>() {
                 let expr_doc = self.convert_expr(expr);
                 codes.push(expr_doc);
+                can_attach_comment = true;
             } else if node.kind() == SyntaxKind::LineComment
                 || node.kind() == SyntaxKind::BlockComment
             {
-                if !codes.is_empty() && is_attached_comment(i) {
+                if can_attach_comment {
                     let last = codes.pop().unwrap();
                     codes.push(last.append(BoxDoc::space()).append(comment(node)));
                 } else {
                     codes.push(comment(node));
                 }
+                can_attach_comment = false;
             } else if node.kind() == SyntaxKind::Space {
                 let newline_cnt = node.text().chars().filter(|c| *c == '\n').count();
-                for _ in 0..newline_cnt.saturating_sub(1) {
-                    codes.push(BoxDoc::nil());
+                if newline_cnt > 0 {
+                    // Ensures no leading empty line.
+                    if !codes.is_empty() {
+                        codes.extend(std::iter::repeat_n(
+                            BoxDoc::nil(),
+                            (newline_cnt - 1).min(self.config.blank_lines_upper_bound),
+                        ));
+                    }
+                    can_attach_comment = false;
                 }
             }
         }
+
         codes
     }
 
@@ -504,8 +522,8 @@ impl PrettyPrinter {
                 .group();
             res
         } else {
-            let style = FoldStyle::from_attr(self.attr_map.get(array.to_untyped()));
-            comma_seprated_items(array_items.into_iter(), style, None, None)
+            let style = self.get_fold_style(array);
+            comma_separated_items(array_items.into_iter(), style, None, None)
         }
     }
 
@@ -523,8 +541,8 @@ impl PrettyPrinter {
             .items()
             .map(|item| self.convert_dict_item(item))
             .collect_vec();
-        let style = FoldStyle::from_attr(self.attr_map.get(dict.to_untyped()));
-        comma_seprated_items(
+        let style = self.get_fold_style(dict);
+        comma_separated_items(
             dict_items.into_iter(),
             style,
             if all_spread { Some("(:") } else { None },
@@ -620,11 +638,11 @@ impl PrettyPrinter {
     fn convert_closure<'a>(&'a self, closure: Closure<'a>) -> BoxDoc<'a, ()> {
         let mut doc = BoxDoc::nil();
         let params = self.convert_params(closure.params());
-        let style = FoldStyle::from_attr(self.attr_map.get(closure.params().to_untyped()));
+        let style = self.get_fold_style(closure.params());
         let arg_list = if let Some(res) = self.check_disabled(closure.params().to_untyped()) {
             res
         } else {
-            comma_seprated_items(params.clone().into_iter(), style, None, None)
+            comma_separated_items(params.clone().into_iter(), style, None, None)
         };
 
         if let Some(name) = closure.name() {
@@ -717,7 +735,7 @@ impl PrettyPrinter {
                 .append(items.into_iter().next().unwrap())
                 .append(BoxDoc::text(",)"))
         } else {
-            comma_seprated_items(items.into_iter(), FoldStyle::Fit, None, None)
+            comma_separated_items(items.into_iter(), FoldStyle::Fit, None, None)
         }
     }
 
@@ -814,10 +832,10 @@ impl PrettyPrinter {
                 doc = doc.append(BoxDoc::text("else"));
                 doc = doc.append(BoxDoc::space());
             } else if child.kind() == SyntaxKind::BlockComment {
-                doc = doc.append(comment(child));
+                doc = doc.append(block_comment(child));
                 doc = doc.append(BoxDoc::space());
             } else if child.kind() == SyntaxKind::LineComment {
-                doc = doc.append(comment(child));
+                doc = doc.append(line_comment(child));
                 doc = doc.append(BoxDoc::hardline());
             } else {
                 match expr_type {
@@ -861,10 +879,10 @@ impl PrettyPrinter {
                 doc = doc.append(BoxDoc::text("while"));
                 doc = doc.append(BoxDoc::space());
             } else if child.kind() == SyntaxKind::BlockComment {
-                doc = doc.append(comment(child));
+                doc = doc.append(block_comment(child));
                 doc = doc.append(BoxDoc::space());
             } else if child.kind() == SyntaxKind::LineComment {
-                doc = doc.append(comment(child));
+                doc = doc.append(line_comment(child));
                 doc = doc.append(BoxDoc::hardline());
             } else if let Some(expr) = child.cast() {
                 doc = doc.append(self.convert_expr(expr));
@@ -1112,7 +1130,7 @@ fn trivia(node: &SyntaxNode) -> BoxDoc<'_, ()> {
     to_doc(std::borrow::Cow::Borrowed(node.text()), StripMode::None)
 }
 
-fn comment(node: &SyntaxNode) -> BoxDoc<'_, ()> {
+fn trivia_prefix(node: &SyntaxNode) -> BoxDoc<'_, ()> {
     to_doc(std::borrow::Cow::Borrowed(node.text()), StripMode::Prefix)
 }
 
