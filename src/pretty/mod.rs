@@ -1,10 +1,13 @@
 pub mod config;
+pub mod doc_ext;
 pub mod style;
 
+mod arg;
 mod comment;
 mod dot_chain;
 mod func_call;
 mod items;
+mod list;
 mod mode;
 mod parened_expr;
 mod table;
@@ -12,13 +15,17 @@ mod util;
 
 use std::cell::RefCell;
 
+use arg::ArgStylist;
 use config::PrinterConfig;
-use items::{comma_separated_items, pretty_items};
+use doc_ext::DocExt;
+use items::pretty_items;
 use itertools::Itertools;
+use list::ListStylist;
 use mode::Mode;
 use parened_expr::optional_paren;
 use pretty::{Arena, DocAllocator, DocBuilder};
 use typst_syntax::{ast::*, SyntaxKind, SyntaxNode};
+use util::is_comment_node;
 
 use crate::AttrStore;
 use style::FoldStyle;
@@ -44,7 +51,11 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn get_fold_style(&self, node: impl AstNode<'a>) -> FoldStyle {
-        if self.attr_store.is_node_multiline(node.to_untyped()) {
+        self.get_fold_style_untyped(node.to_untyped())
+    }
+
+    fn get_fold_style_untyped(&self, node: &'a SyntaxNode) -> FoldStyle {
+        if self.attr_store.is_node_multiline(node) {
             FoldStyle::Never
         } else {
             FoldStyle::Fit
@@ -122,12 +133,8 @@ impl<'a> PrettyPrinter<'a> {
                 if has_text {
                     doc += self.format_disabled(node);
                 } else if let Some(expr) = node.cast::<Expr>() {
-                    let expr_doc = self.convert_expr(expr);
-                    doc += expr_doc;
-                } else if matches!(
-                    node.kind(),
-                    SyntaxKind::LineComment | SyntaxKind::BlockComment
-                ) {
+                    doc += self.convert_expr(expr);
+                } else if is_comment_node(node) {
                     doc += self.convert_comment(node);
                 } else {
                     doc += trivia_prefix(&self.arena, node);
@@ -248,8 +255,7 @@ impl<'a> PrettyPrinter<'a> {
             .chars()
             .filter(|c| *c == '\n')
             .count();
-        self.arena
-            .concat(std::iter::repeat_n(self.arena.hardline(), newline_count))
+        self.arena.hardline().repeat_n(newline_count)
     }
 
     fn convert_escape(&'a self, escape: Escape<'a>) -> ArenaDoc<'a> {
@@ -419,9 +425,7 @@ impl<'a> PrettyPrinter<'a> {
                 code_nodes.extend(code.to_untyped().children());
             } else if node.kind() == SyntaxKind::Space {
                 code_nodes.push(node);
-            } else if node.kind() == SyntaxKind::LineComment
-                || node.kind() == SyntaxKind::BlockComment
-            {
+            } else if is_comment_node(node) {
                 code_nodes.push(node);
                 has_comment = true;
             }
@@ -458,9 +462,7 @@ impl<'a> PrettyPrinter<'a> {
                 let expr_doc = self.convert_expr(expr);
                 codes.push(expr_doc);
                 can_attach_comment = true;
-            } else if node.kind() == SyntaxKind::LineComment
-                || node.kind() == SyntaxKind::BlockComment
-            {
+            } else if is_comment_node(node) {
                 if can_attach_comment {
                     let last = codes.pop().unwrap();
                     codes.push(last + self.arena.space() + self.convert_comment(node));
@@ -473,10 +475,9 @@ impl<'a> PrettyPrinter<'a> {
                 if newline_cnt > 0 {
                     // Ensures no leading empty line.
                     if !codes.is_empty() {
-                        codes.extend(std::iter::repeat_n(
-                            self.arena.nil(),
-                            (newline_cnt - 1).min(self.config.blank_lines_upper_bound),
-                        ));
+                        for _ in 0..(newline_cnt - 1).min(self.config.blank_lines_upper_bound) {
+                            codes.push(self.arena.nil());
+                        }
                     }
                     can_attach_comment = false;
                 }
@@ -492,29 +493,7 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn convert_array(&'a self, array: Array<'a>) -> ArenaDoc<'a> {
-        let array_items = array
-            .items()
-            .map(|item| self.convert_array_item(item))
-            .collect_vec();
-        if array_items.len() == 1 {
-            let res = self
-                .arena
-                .text("(")
-                .append(
-                    self.arena
-                        .line_()
-                        .append(array_items[0].clone())
-                        .append(self.arena.text(","))
-                        .nest(2),
-                )
-                .append(self.arena.line_())
-                .append(self.arena.text(")"))
-                .group();
-            res
-        } else {
-            let style = self.get_fold_style(array);
-            comma_separated_items(&self.arena, array_items.into_iter(), style, None, None)
-        }
+        ListStylist::new(self).convert_array(array)
     }
 
     fn convert_array_item(&'a self, array_item: ArrayItem<'a>) -> ArenaDoc<'a> {
@@ -525,19 +504,7 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn convert_dict(&'a self, dict: Dict<'a>) -> ArenaDoc<'a> {
-        let all_spread = dict.items().all(|item| matches!(item, DictItem::Spread(_)));
-        let dict_items = dict
-            .items()
-            .map(|item| self.convert_dict_item(item))
-            .collect_vec();
-        let style = self.get_fold_style(dict);
-        comma_separated_items(
-            &self.arena,
-            dict_items.into_iter(),
-            style,
-            if all_spread { Some("(:") } else { None },
-            None,
-        )
+        ListStylist::new(self).convert_dict(dict)
     }
 
     fn convert_dict_item(&'a self, dict_item: DictItem<'a>) -> ArenaDoc<'a> {
@@ -549,33 +516,11 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn convert_named(&'a self, named: Named<'a>) -> ArenaDoc<'a> {
-        if let Some(res) = self.check_disabled(named.to_untyped()) {
-            return res;
-        }
-        // TODO: better handling hash #
-        let has_hash = named
-            .to_untyped()
-            .children()
-            .any(|node| matches!(node.kind(), SyntaxKind::Hash));
-        let mut doc = self.convert_ident(named.name());
-        doc = doc.append(self.arena.text(":"));
-        doc = doc.append(self.arena.space());
-        if has_hash {
-            doc = doc.append(self.arena.text("#"));
-        }
-        doc = doc.append(self.convert_expr(named.expr()));
-        doc.group()
+        ArgStylist::new(self).convert_named(named)
     }
 
     fn convert_keyed(&'a self, keyed: Keyed<'a>) -> ArenaDoc<'a> {
-        if let Some(res) = self.check_disabled(keyed.to_untyped()) {
-            return res;
-        }
-        let mut doc = self.convert_expr(keyed.key());
-        doc = doc.append(self.arena.text(":"));
-        doc = doc.append(self.arena.space());
-        doc = doc.append(self.convert_expr(keyed.expr()));
-        doc
+        ArgStylist::new(self).convert_keyed(keyed)
     }
 
     fn convert_unary(&'a self, unary: Unary<'a>) -> ArenaDoc<'a> {
@@ -625,47 +570,26 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn convert_closure(&'a self, closure: Closure<'a>) -> ArenaDoc<'a> {
-        let mut doc = self.arena.nil();
-        let params = self.convert_params(closure.params());
-        let style = self.get_fold_style(closure.params());
-        let arg_list = if let Some(res) = self.check_disabled(closure.params().to_untyped()) {
-            res
-        } else {
-            comma_separated_items(&self.arena, params.clone().into_iter(), style, None, None)
-        };
-
         if let Some(name) = closure.name() {
-            doc += self.convert_ident(name)
-                + arg_list
+            let params = self.convert_params(closure.params(), true);
+            self.convert_ident(name)
+                + params
                 + self.arena.space()
                 + self.arena.text("=")
                 + self.arena.space()
-                + self.convert_expr_with_optional_paren(closure.body());
+                + self.convert_expr_with_optional_paren(closure.body())
         } else {
-            if params.len() == 1
-                && matches!(closure.params().children().next().unwrap(), Param::Pos(_))
-                && !matches!(
-                    closure.params().children().next().unwrap(),
-                    Param::Pos(Pattern::Destructuring(_))
-                )
-            {
-                doc = params[0].clone();
-            } else {
-                doc = arg_list
-            }
-            doc += self.arena.space()
+            let params = self.convert_params(closure.params(), false);
+            params
+                + self.arena.space()
                 + self.arena.text("=>")
                 + self.arena.space()
-                + self.convert_expr_with_optional_paren(closure.body());
+                + self.convert_expr_with_optional_paren(closure.body())
         }
-        doc
     }
 
-    fn convert_params(&'a self, params: Params<'a>) -> Vec<ArenaDoc<'a>> {
-        params
-            .children()
-            .map(|param| self.convert_param(param))
-            .collect()
+    fn convert_params(&'a self, params: Params<'a>, is_named: bool) -> ArenaDoc<'a> {
+        ListStylist::new(self).convert_params(params, !is_named)
     }
 
     fn convert_param(&'a self, param: Param<'a>) -> ArenaDoc<'a> {
@@ -677,19 +601,7 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn convert_spread(&'a self, spread: Spread<'a>) -> ArenaDoc<'a> {
-        if let Some(res) = self.check_disabled(spread.to_untyped()) {
-            return res;
-        }
-        let mut doc = self.arena.text("..");
-        let ident = if let Some(id) = spread.sink_ident() {
-            self.convert_ident(id)
-        } else if let Some(expr) = spread.sink_expr() {
-            self.convert_expr(expr)
-        } else {
-            self.arena.nil()
-        };
-        doc = doc.append(ident);
-        doc.group()
+        ArgStylist::new(self).convert_spread(spread)
     }
 
     fn convert_pattern(&'a self, pattern: Pattern<'a>) -> ArenaDoc<'a> {
@@ -706,26 +618,7 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn convert_destructuring(&'a self, destructuring: Destructuring<'a>) -> ArenaDoc<'a> {
-        if let Some(res) = self.check_disabled(destructuring.to_untyped()) {
-            return res;
-        }
-        let items: Vec<_> = destructuring
-            .items()
-            .map(|item| self.convert_destructuring_item(item))
-            .collect();
-        if items.len() == 1
-            && matches!(
-                destructuring.items().next().unwrap(),
-                DestructuringItem::Pattern(_)
-            )
-        {
-            self.arena
-                .text("(")
-                .append(items.into_iter().next().unwrap())
-                .append(self.arena.text(",)"))
-        } else {
-            comma_separated_items(&self.arena, items.into_iter(), FoldStyle::Fit, None, None)
-        }
+        ListStylist::new(self).convert_destructuring(destructuring)
     }
 
     fn convert_destructuring_item(

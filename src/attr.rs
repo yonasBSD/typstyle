@@ -107,7 +107,11 @@ impl AttrStore {
                 // currently we only support comments as children of these nodes
                 if !matches!(
                     node.kind(),
-                    SyntaxKind::ContentBlock | SyntaxKind::CodeBlock | SyntaxKind::Code
+                    SyntaxKind::ContentBlock
+                        | SyntaxKind::CodeBlock
+                        | SyntaxKind::Code
+                        | SyntaxKind::Array
+                        | SyntaxKind::Dict
                 ) {
                     self.set_no_format(node);
                 }
