@@ -1,6 +1,15 @@
 use ecow::EcoString;
 use typst_syntax::{ast::*, SyntaxKind, SyntaxNode};
 
+pub fn is_only_one_and<T>(
+    mut iterator: impl Iterator<Item = T>,
+    f: impl FnOnce(&T) -> bool,
+) -> bool {
+    iterator
+        .next()
+        .is_some_and(|first| f(&first) && iterator.next().is_none())
+}
+
 pub fn is_comment_node(node: &SyntaxNode) -> bool {
     matches!(
         node.kind(),
@@ -53,4 +62,16 @@ pub(super) fn has_additional_args(node: Args<'_>) -> bool {
         })
         .filter_map(|node| node.cast::<'_, Arg>());
     args.count() > 1
+}
+
+pub trait BoolExt {
+    fn replace(&mut self, value: Self) -> Self;
+}
+
+impl BoolExt for bool {
+    fn replace(&mut self, value: Self) -> Self {
+        let old = *self;
+        *self = value;
+        old
+    }
 }

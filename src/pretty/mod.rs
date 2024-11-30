@@ -2,12 +2,16 @@ pub mod config;
 pub mod doc_ext;
 pub mod style;
 
-mod arg;
+mod code_flow;
+mod code_list;
 mod comment;
 mod dot_chain;
+mod flow;
 mod func_call;
+mod import;
 mod items;
 mod list;
+mod markup;
 mod mode;
 mod parened_expr;
 mod table;
@@ -15,14 +19,11 @@ mod util;
 
 use std::cell::RefCell;
 
-use arg::ArgStylist;
 use config::PrinterConfig;
 use doc_ext::DocExt;
 use items::pretty_items;
 use itertools::Itertools;
-use list::ListStylist;
 use mode::Mode;
-use parened_expr::optional_paren;
 use pretty::{Arena, DocAllocator, DocBuilder};
 use typst_syntax::{ast::*, SyntaxKind, SyntaxNode};
 use util::is_comment_node;
@@ -145,7 +146,15 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn check_disabled(&'a self, node: &'a SyntaxNode) -> Option<ArenaDoc<'a>> {
-        if self.attr_store.is_node_no_format(node) {
+        if self.attr_store.is_node_format_disabled(node) {
+            Some(self.format_disabled(node))
+        } else {
+            None
+        }
+    }
+
+    fn check_unformattable(&'a self, node: &'a SyntaxNode) -> Option<ArenaDoc<'a>> {
+        if self.attr_store.is_node_unformattable(node) {
             Some(self.format_disabled(node))
         } else {
             None
@@ -153,7 +162,7 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn format_disabled(&'a self, node: &'a SyntaxNode) -> ArenaDoc<'a> {
-        return self.arena.text(node.clone().into_text().to_string());
+        self.arena.text(node.clone().into_text().to_string())
     }
 
     fn convert_expr(&'a self, expr: Expr<'a>) -> ArenaDoc<'a> {
@@ -211,8 +220,8 @@ impl<'a> PrettyPrinter<'a> {
             Expr::Set(s) => self.convert_set_rule(s),
             Expr::Show(s) => self.convert_show_rule(s),
             Expr::Conditional(c) => self.convert_conditional(c),
-            Expr::While(w) => self.convert_while(w),
-            Expr::For(f) => self.convert_for(f),
+            Expr::While(w) => self.convert_while_loop(w),
+            Expr::For(f) => self.convert_for_loop(f),
             Expr::Import(i) => self.convert_import(i),
             Expr::Include(i) => self.convert_include(i),
             Expr::Break(b) => self.convert_break(b),
@@ -314,34 +323,6 @@ impl<'a> PrettyPrinter<'a> {
             doc += self.convert_content_block(supplement);
         }
         doc
-    }
-
-    fn convert_heading(&'a self, heading: Heading<'a>) -> ArenaDoc<'a> {
-        self.arena.text("=".repeat(heading.depth().into()))
-            + self.arena.space()
-            + self.convert_markup(heading.body())
-    }
-
-    fn convert_list_item(&'a self, list_item: ListItem<'a>) -> ArenaDoc<'a> {
-        self.arena.text("-") + self.arena.space() + self.convert_markup(list_item.body()).nest(2)
-    }
-
-    fn convert_enum_item(&'a self, enum_item: EnumItem<'a>) -> ArenaDoc<'a> {
-        let doc = if let Some(number) = enum_item.number() {
-            self.arena.text(format!("{number}."))
-        } else {
-            self.arena.text("+")
-        };
-        doc + self.arena.space() + self.convert_markup(enum_item.body()).nest(2)
-    }
-
-    fn convert_term_item(&'a self, term: TermItem<'a>) -> ArenaDoc<'a> {
-        self.arena.text("/")
-            + self.arena.space()
-            + self.convert_markup(term.term())
-            + self.arena.text(":")
-            + self.arena.space()
-            + self.convert_markup(term.description()).nest(2)
     }
 
     fn convert_equation(&'a self, equation: Equation<'a>) -> ArenaDoc<'a> {
@@ -492,19 +473,11 @@ impl<'a> PrettyPrinter<'a> {
         content.brackets()
     }
 
-    fn convert_array(&'a self, array: Array<'a>) -> ArenaDoc<'a> {
-        ListStylist::new(self).convert_array(array)
-    }
-
     fn convert_array_item(&'a self, array_item: ArrayItem<'a>) -> ArenaDoc<'a> {
         match array_item {
             ArrayItem::Pos(p) => self.convert_expr(p),
             ArrayItem::Spread(s) => self.convert_spread(s),
         }
-    }
-
-    fn convert_dict(&'a self, dict: Dict<'a>) -> ArenaDoc<'a> {
-        ListStylist::new(self).convert_dict(dict)
     }
 
     fn convert_dict_item(&'a self, dict_item: DictItem<'a>) -> ArenaDoc<'a> {
@@ -515,32 +488,10 @@ impl<'a> PrettyPrinter<'a> {
         }
     }
 
-    fn convert_named(&'a self, named: Named<'a>) -> ArenaDoc<'a> {
-        ArgStylist::new(self).convert_named(named)
-    }
-
-    fn convert_keyed(&'a self, keyed: Keyed<'a>) -> ArenaDoc<'a> {
-        ArgStylist::new(self).convert_keyed(keyed)
-    }
-
-    fn convert_unary(&'a self, unary: Unary<'a>) -> ArenaDoc<'a> {
-        let op_text = match unary.op() {
-            UnOp::Pos => "+",
-            UnOp::Neg => "-",
-            UnOp::Not => "not ",
-        };
-        self.arena.text(op_text) + self.convert_expr(unary.expr())
-    }
-
-    fn convert_binary(&'a self, binary: Binary<'a>) -> ArenaDoc<'a> {
-        self.convert_expr(binary.lhs())
-            + self.arena.space()
-            + self.arena.text(binary.op().as_str())
-            + self.arena.space()
-            + self.convert_expr(binary.rhs())
-    }
-
     fn convert_field_access(&'a self, field_access: FieldAccess<'a>) -> ArenaDoc<'a> {
+        if let Some(res) = self.check_unformattable(field_access.to_untyped()) {
+            return res;
+        }
         let chain = self.resolve_dot_chain(field_access);
         if chain.is_none() || matches!(self.current_mode(), Mode::Markup | Mode::Math) {
             let left = self.convert_expr(field_access.target());
@@ -571,7 +522,7 @@ impl<'a> PrettyPrinter<'a> {
 
     fn convert_closure(&'a self, closure: Closure<'a>) -> ArenaDoc<'a> {
         if let Some(name) = closure.name() {
-            let params = self.convert_params(closure.params(), true);
+            let params = self.convert_params(closure.params(), false);
             self.convert_ident(name)
                 + params
                 + self.arena.space()
@@ -579,7 +530,7 @@ impl<'a> PrettyPrinter<'a> {
                 + self.arena.space()
                 + self.convert_expr_with_optional_paren(closure.body())
         } else {
-            let params = self.convert_params(closure.params(), false);
+            let params = self.convert_params(closure.params(), true);
             params
                 + self.arena.space()
                 + self.arena.text("=>")
@@ -588,20 +539,12 @@ impl<'a> PrettyPrinter<'a> {
         }
     }
 
-    fn convert_params(&'a self, params: Params<'a>, is_named: bool) -> ArenaDoc<'a> {
-        ListStylist::new(self).convert_params(params, !is_named)
-    }
-
     fn convert_param(&'a self, param: Param<'a>) -> ArenaDoc<'a> {
         match param {
             Param::Pos(p) => self.convert_pattern(p),
             Param::Named(n) => self.convert_named(n),
             Param::Spread(s) => self.convert_spread(s),
         }
-    }
-
-    fn convert_spread(&'a self, spread: Spread<'a>) -> ArenaDoc<'a> {
-        ArgStylist::new(self).convert_spread(spread)
     }
 
     fn convert_pattern(&'a self, pattern: Pattern<'a>) -> ArenaDoc<'a> {
@@ -617,10 +560,6 @@ impl<'a> PrettyPrinter<'a> {
         self.arena.text("_")
     }
 
-    fn convert_destructuring(&'a self, destructuring: Destructuring<'a>) -> ArenaDoc<'a> {
-        ListStylist::new(self).convert_destructuring(destructuring)
-    }
-
     fn convert_destructuring_item(
         &'a self,
         destructuring_item: DestructuringItem<'a>,
@@ -632,210 +571,12 @@ impl<'a> PrettyPrinter<'a> {
         }
     }
 
-    fn convert_let_binding(&'a self, let_binding: LetBinding<'a>) -> ArenaDoc<'a> {
-        let mut doc = self.arena.text("let") + self.arena.space();
-        match let_binding.kind() {
-            LetBindingKind::Normal(n) => {
-                doc += self.convert_pattern(n).group();
-                if let Some(expr) = let_binding.init() {
-                    doc += self.arena.space()
-                        + self.arena.text("=")
-                        + self.arena.space()
-                        + self.convert_expr(expr);
-                }
-            }
-            LetBindingKind::Closure(_c) => {
-                if let Some(c) = let_binding.init() {
-                    doc += self.convert_expr(c);
-                }
-            }
-        }
-        doc
-    }
-
-    fn convert_destruct_assignment(
-        &'a self,
-        destruct_assign: DestructAssignment<'a>,
-    ) -> ArenaDoc<'a> {
-        self.convert_pattern(destruct_assign.pattern())
-            + self.arena.space()
-            + self.arena.text("=")
-            + self.arena.space()
-            + self.convert_expr(destruct_assign.value())
-    }
-
-    fn convert_set_rule(&'a self, set_rule: SetRule<'a>) -> ArenaDoc<'a> {
-        let mut doc =
-            self.arena.text("set") + self.arena.space() + self.convert_expr(set_rule.target());
-        if let Some(res) = self.check_disabled(set_rule.args().to_untyped()) {
-            doc += res;
-        } else {
-            doc += self.convert_parenthesized_args(set_rule.args());
-        }
-        if let Some(condition) = set_rule.condition() {
-            doc += self.arena.space()
-                + self.arena.text("if")
-                + self.arena.space()
-                + self.convert_expr(condition)
-        }
-        doc
-    }
-
-    fn convert_show_rule(&'a self, show_rule: ShowRule<'a>) -> ArenaDoc<'a> {
-        let mut doc = self.arena.text("show");
-        if let Some(selector) = show_rule.selector() {
-            doc += self.arena.space() + self.convert_expr(selector);
-        }
-        doc + self.arena.text(":") + self.arena.space() + self.convert_expr(show_rule.transform())
-    }
-
-    fn convert_conditional(&'a self, conditional: Conditional<'a>) -> ArenaDoc<'a> {
-        let mut doc = self.arena.nil();
-        enum CastType {
-            Condition,
-            Then,
-            Else,
-        }
-        let has_else = conditional.else_body().is_some();
-        let mut expr_type = CastType::Condition;
-        for child in conditional.to_untyped().children() {
-            if child.kind() == SyntaxKind::If {
-                doc += self.arena.text("if") + self.arena.space();
-            } else if child.kind() == SyntaxKind::Else {
-                doc += self.arena.text("else") + self.arena.space();
-            } else if child.kind() == SyntaxKind::BlockComment {
-                doc += self.convert_block_comment(child) + self.arena.space();
-            } else if child.kind() == SyntaxKind::LineComment {
-                doc += self.convert_line_comment(child) + self.arena.hardline();
-            } else {
-                match expr_type {
-                    CastType::Condition => {
-                        if let Some(condition) = child.cast() {
-                            doc += self.convert_expr(condition) + self.arena.space();
-                            expr_type = CastType::Then;
-                        }
-                    }
-                    CastType::Then => {
-                        if let Some(then_expr) = child.cast() {
-                            doc += self.convert_expr(then_expr).group();
-                            if has_else {
-                                expr_type = CastType::Else;
-                                doc += self.arena.space();
-                            }
-                        }
-                    }
-                    CastType::Else => {
-                        if let Some(else_expr) = child.cast() {
-                            doc += self.convert_expr(else_expr).group();
-                        }
-                    }
-                }
-            }
-        }
-        doc
-    }
-
-    fn convert_while(&'a self, while_loop: WhileLoop<'a>) -> ArenaDoc<'a> {
-        let mut doc = self.arena.nil();
-        #[derive(Debug, PartialEq)]
-        enum CastType {
-            Condition,
-            Body,
-        }
-        let mut expr_type = CastType::Condition;
-        for child in while_loop.to_untyped().children() {
-            if child.kind() == SyntaxKind::While {
-                doc += self.arena.text("while") + self.arena.space();
-            } else if child.kind() == SyntaxKind::BlockComment {
-                doc += self.convert_block_comment(child) + self.arena.space();
-            } else if child.kind() == SyntaxKind::LineComment {
-                doc += self.convert_line_comment(child) + self.arena.hardline();
-            } else if let Some(expr) = child.cast() {
-                doc += self.convert_expr(expr);
-                if expr_type == CastType::Condition {
-                    doc += self.arena.space();
-                    expr_type = CastType::Body;
-                }
-            }
-        }
-        doc
-    }
-
-    fn convert_for(&'a self, for_loop: ForLoop<'a>) -> ArenaDoc<'a> {
-        let for_pattern = self.arena.text("for")
-            + self.arena.space()
-            + self.convert_pattern(for_loop.pattern())
-            + self.arena.space();
-        let in_iter = self.arena.text("in")
-            + self.arena.space()
-            // + self.arena.softline() // upstream issue: https://github.com/typst/typst/issues/4548
-            + self.convert_expr_with_optional_paren(for_loop.iterable())
-            + self.arena.space();
-        let body = self.convert_expr(for_loop.body());
-        (for_pattern + in_iter).group() + body
-    }
-
-    fn convert_import(&'a self, import: ModuleImport<'a>) -> ArenaDoc<'a> {
-        let mut doc =
-            self.arena.text("import") + self.arena.space() + self.convert_expr(import.source());
-        if let Some(new_name) = import.new_name() {
-            doc += self.arena.space()
-                + self.arena.text("as")
-                + self.arena.space()
-                + self.convert_ident(new_name);
-        }
-        if let Some(imports) = import.imports() {
-            doc += self.arena.text(":") + self.arena.space();
-            let imports = match imports {
-                Imports::Wildcard => self.arena.text("*"),
-                Imports::Items(i) => {
-                    let trailing_comma = self.arena.text(",").flat_alt(self.arena.nil());
-                    let inner = self.arena.intersperse(
-                        i.iter().map(|item| self.convert_import_item(item)),
-                        self.arena.text(",") + self.arena.line(),
-                    ) + trailing_comma;
-                    optional_paren(&self.arena, inner)
-                }
-            };
-            doc += imports.group();
-        }
-        doc
-    }
-
-    fn convert_import_item(&'a self, import_item: ImportItem<'a>) -> ArenaDoc<'a> {
-        match import_item {
-            ImportItem::Simple(s) => self.arena.intersperse(
-                s.iter().map(|id| self.convert_ident(id)),
-                self.arena.text("."),
-            ),
-            ImportItem::Renamed(r) => {
-                self.convert_ident(r.original_name())
-                    + self.arena.space()
-                    + self.arena.text("as")
-                    + self.arena.space()
-                    + self.convert_ident(r.new_name())
-            }
-        }
-    }
-
-    fn convert_include(&'a self, include: ModuleInclude<'a>) -> ArenaDoc<'a> {
-        self.arena.text("include") + self.arena.space() + self.convert_expr(include.source())
-    }
-
     fn convert_break(&'a self, _break: LoopBreak<'a>) -> ArenaDoc<'a> {
         self.arena.text("break")
     }
 
     fn convert_continue(&'a self, _continue: LoopContinue<'a>) -> ArenaDoc<'a> {
         self.arena.text("continue")
-    }
-
-    fn convert_return(&'a self, return_stmt: FuncReturn<'a>) -> ArenaDoc<'a> {
-        let mut doc = self.arena.text("return") + self.arena.space();
-        if let Some(body) = return_stmt.body() {
-            doc += self.convert_expr(body);
-        }
-        doc
     }
 
     fn convert_math_delimited(&'a self, math_delimited: MathDelimited<'a>) -> ArenaDoc<'a> {
@@ -957,22 +698,17 @@ impl<'a> PrettyPrinter<'a> {
     fn convert_math_root(&'a self, math_root: MathRoot<'a>) -> ArenaDoc<'a> {
         let sqrt_sym = if let Some(index) = math_root.index() {
             if index == 3 {
-                self.arena.text("∛")
+                "∛"
             } else if index == 4 {
-                self.arena.text("∜")
+                "∜"
             } else {
                 // TODO: actually unreachable
-                self.arena.text("√")
+                "√"
             }
         } else {
-            self.arena.text("√")
+            "√"
         };
-        sqrt_sym + self.convert_expr(math_root.radicand())
-    }
-
-    fn convert_contextual(&'a self, ctx: Contextual<'a>) -> ArenaDoc<'a> {
-        let body = self.convert_expr(ctx.body());
-        self.arena.text("context") + self.arena.space() + body
+        self.arena.text(sqrt_sym) + self.convert_expr(math_root.radicand())
     }
 }
 
