@@ -207,7 +207,7 @@ impl<'a> PrettyPrinter<'a> {
             Expr::Str(s) => self.convert_str(s),
             Expr::Code(c) => self.convert_code_block(c),
             Expr::Content(c) => self.convert_content_block(c),
-            Expr::Parenthesized(p) => self.convert_parenthesized(p, false),
+            Expr::Parenthesized(p) => self.convert_parenthesized(p),
             Expr::Array(a) => self.convert_array(a),
             Expr::Dict(d) => self.convert_dict(d),
             Expr::Unary(u) => self.convert_unary(u),
@@ -520,25 +520,6 @@ impl<'a> PrettyPrinter<'a> {
         chain
     }
 
-    fn convert_closure(&'a self, closure: Closure<'a>) -> ArenaDoc<'a> {
-        if let Some(name) = closure.name() {
-            let params = self.convert_params(closure.params(), false);
-            self.convert_ident(name)
-                + params
-                + self.arena.space()
-                + self.arena.text("=")
-                + self.arena.space()
-                + self.convert_expr_with_optional_paren(closure.body())
-        } else {
-            let params = self.convert_params(closure.params(), true);
-            params
-                + self.arena.space()
-                + self.arena.text("=>")
-                + self.arena.space()
-                + self.convert_expr_with_optional_paren(closure.body())
-        }
-    }
-
     fn convert_param(&'a self, param: Param<'a>) -> ArenaDoc<'a> {
         match param {
             Param::Pos(p) => self.convert_pattern(p),
@@ -548,11 +529,14 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn convert_pattern(&'a self, pattern: Pattern<'a>) -> ArenaDoc<'a> {
+        if let Some(res) = self.check_disabled(pattern.to_untyped()) {
+            return res;
+        }
         match pattern {
             Pattern::Normal(n) => self.convert_expr(n),
             Pattern::Placeholder(p) => self.convert_underscore(p),
             Pattern::Destructuring(d) => self.convert_destructuring(d),
-            Pattern::Parenthesized(p) => self.convert_parenthesized(p, true),
+            Pattern::Parenthesized(p) => self.convert_parenthesized(p),
         }
     }
 
