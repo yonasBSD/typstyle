@@ -336,9 +336,9 @@ snapshot_kind: text
   is-metadata(it) and type(it.value) == dictionary and it
     .value
     .at(
-    "kind",
-    default: none,
-  ) == kind
+      "kind",
+      default: none,
+    ) == kind
 }
 
 
@@ -480,12 +480,18 @@ snapshot_kind: text
       lbl,
     ) => titlecase(
       lbl
-        .replace(regex("^[^:]*:"), "")
-        .replace("_", " ")
         .replace(
-        "-",
-        " ",
-      ),
+          regex("^[^:]*:"),
+          "",
+        )
+        .replace(
+          "_",
+          " ",
+        )
+        .replace(
+          "-",
+          " ",
+        ),
     )
   }
   convert-label-to-short-heading = convert-label-to-short-heading.with(self: self)
@@ -713,11 +719,11 @@ snapshot_kind: text
       .info
       .date
       .display(
-      self.at(
-        "datetime-format",
-        default: auto,
-      ),
-    )
+        self.at(
+          "datetime-format",
+          default: auto,
+        ),
+      )
   } else {
     self
       .info
@@ -760,8 +766,8 @@ snapshot_kind: text
           .text
           .split("\n")
           .map(l => (
-              "\n" + indent * " " + l
-            ))
+            "\n" + indent * " " + l
+          ))
           .sum(default: "") + "\n" + indent * " " + "```"
       } else {
         "`" + it.text + "`"
@@ -841,7 +847,9 @@ snapshot_kind: text
   if type(size) == ratio {
     to-convert = container-dimension * size
   }
-  measure(v(to-convert)).height
+  measure(
+    v(to-convert),
+  ).height
 }
 
 #let _limit-content-width(
@@ -1689,7 +1697,10 @@ snapshot_kind: text
     let raw-text = if type(note) == content and note.has("text") {
       note.text
     } else {
-      markup-text(note, mode: mode).trim()
+      markup-text(
+        note,
+        mode: mode,
+      ).trim()
     }
     pdfpc.speaker-note(raw-text)
   }

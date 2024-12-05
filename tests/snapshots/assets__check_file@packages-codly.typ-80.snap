@@ -299,20 +299,22 @@ snapshot_kind: text
     if highlights == none {
       ()
     } else {
-      highlights.sorted(key: x => x.line).map(x => {
-        if not "start" in x or x.start == none {
-          x.insert("start", 0)
-        }
+      highlights
+        .sorted(key: x => x.line)
+        .map(x => {
+          if not "start" in x or x.start == none {
+            x.insert("start", 0)
+          }
 
-        if not "end" in x or x.end == none {
-          x.insert("end", 999999999)
-        }
+          if not "end" in x or x.end == none {
+            x.insert("end", 999999999)
+          }
 
-        if not "fill" in x {
-          x.insert("fill", default-color)
-        }
-        x
-      })
+          if not "fill" in x {
+            x.insert("fill", default-color)
+          }
+          x
+        })
     }
   }
 
@@ -513,9 +515,10 @@ snapshot_kind: text
           )(if "reference-number-format" in extra {
             extra.reference-number-format
           } else {
-            state("codly-reference-number-format", __codly-args
-                .reference-number-format
-                .default).get()
+            state(
+              "codly-reference-number-format",
+              __codly-args.reference-number-format.default,
+            ).get()
           })
 
           reference-number-format(it.number)
@@ -861,9 +864,10 @@ snapshot_kind: text
   )(if "reference-number-format" in extra {
     extra.reference-number-format
   } else {
-    state("codly-reference-number-format", __codly-args
-        .reference-number-format
-        .default).get()
+    state(
+      "codly-reference-number-format",
+      __codly-args.reference-number-format.default,
+    ).get()
   })
 
   let annotation-format = {
@@ -872,9 +876,10 @@ snapshot_kind: text
     )(if "annotation-format" in extra {
       extra.annotation-format
     } else {
-      state("codly-annotation-format", __codly-args
-          .annotation-format
-          .default).get()
+      state(
+        "codly-annotation-format",
+        __codly-args.annotation-format.default,
+      ).get()
     })
     if fn == none {
       _ => none
@@ -894,23 +899,25 @@ snapshot_kind: text
     annotations = if annotations == none {
       ()
     } else {
-      annotations.sorted(key: x => x.start).map(x => {
-        if (not "end" in x) or x.end == none {
-          x.insert("end", x.start)
-        }
-
-        if (not "content" in x) {
-          x.insert("content", none)
-        }
-
-        if "label" in x {
-          if block-label == none {
-            panic("codly: label " + str(x.label) + " is only allowed in a figure block")
+      annotations
+        .sorted(key: x => x.start)
+        .map(x => {
+          if (not "end" in x) or x.end == none {
+            x.insert("end", x.start)
           }
-        }
 
-        x
-      })
+          if (not "content" in x) {
+            x.insert("content", none)
+          }
+
+          if "label" in x {
+            if block-label == none {
+              panic("codly: label " + str(x.label) + " is only allowed in a figure block")
+            }
+          }
+
+          x
+        })
     }
 
     // Check for overlapping annotations.
@@ -951,7 +958,7 @@ snapshot_kind: text
 
   // Get the height of an individual line.
   let line-height = measure(
-    raw.line(1, 1, "Hello, World!", [Hello, World!])
+    raw.line(1, 1, "Hello, World!", [Hello, World!]),
   ).height + padding.top + padding.bottom
 
   let items = ()
@@ -1140,18 +1147,20 @@ snapshot_kind: text
     )(if "header-cell-args" in extra {
       extra.header-cell-args
     } else {
-      state("codly-header-cell-args", __codly-args
-          .header-cell-args
-          .default).get()
+      state(
+        "codly-header-cell-args",
+        __codly-args.header-cell-args.default,
+      ).get()
     })
     let transform = (
       __codly-args.header-transform.type_check
     )(if "header-transform" in extra {
       extra.header-transform
     } else {
-      state("codly-header-transform", __codly-args
-          .header-transform
-          .default).get()
+      state(
+        "codly-header-transform",
+        __codly-args.header-transform.default,
+      ).get()
     })
     (
       grid.header(
@@ -1305,18 +1314,20 @@ snapshot_kind: text
     )(if "footer-cell-args" in extra {
       extra.footer-cell-args
     } else {
-      state("codly-footer-cell-args", __codly-args
-          .footer-cell-args
-          .default).get()
+      state(
+        "codly-footer-cell-args",
+        __codly-args.footer-cell-args.default,
+      ).get()
     })
     let transform = (
       __codly-args.footer-transform.type_check
     )(if "footer-transform" in extra {
       extra.footer-transform
     } else {
-      state("codly-footer-transform", __codly-args
-          .footer-transform
-          .default).get()
+      state(
+        "codly-footer-transform",
+        __codly-args.footer-transform.default,
+      ).get()
     })
     (
       grid.footer(
@@ -1509,9 +1520,10 @@ snapshot_kind: text
     )(if "reference-number-format" in extra {
       extra.reference-number-format
     } else {
-      state("codly-reference-number-format", __codly-args
-          .reference-number-format
-          .default).get()
+      state(
+        "codly-reference-number-format",
+        __codly-args.reference-number-format.default,
+      ).get()
     })
 
     link(

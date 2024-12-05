@@ -39,7 +39,10 @@ snapshot_kind: text
     is-named,
   ) = {
     if is-named {
-      return split-once(arg, ":").map(str.trim)
+      return split-once(
+        arg,
+        ":",
+      ).map(str.trim)
     } else {
       return (arg.trim(),)
     }
@@ -64,7 +67,10 @@ snapshot_kind: text
           let (
             name,
             value,
-          ) = split-once(arg, ":").map(str.trim)
+          ) = split-once(
+            arg,
+            ":",
+          ).map(str.trim)
           args.push((name, value))
         } else {
           arg = arg.trim()
@@ -84,7 +90,10 @@ snapshot_kind: text
           let (
             name,
             value,
-          ) = split-once(arg, ":").map(str.trim)
+          ) = split-once(
+            arg,
+            ":",
+          ).map(str.trim)
           args.push((name, value))
         } else {
           arg = arg.trim()
@@ -158,7 +167,9 @@ snapshot_kind: text
 ) = {
   let description = lines
     .enumerate(start: first-line-number)
-    .map(eval-doc-comment-test.with(label-prefix: label-prefix))
+    .map(
+      eval-doc-comment-test.with(label-prefix: label-prefix),
+    )
     .join("\n")
 
   if description == none {
@@ -304,9 +315,9 @@ snapshot_kind: text
 
 #let parameter-parser(state, line) = {
   if line.starts-with("///") {
-    state.unmatched-description.push(
-      line.slice(3),
-    )
+    state
+      .unmatched-description
+      .push(line.slice(3))
   } else {
     state.unfinished-param += trim-trailing-comments(line)
 
@@ -336,17 +347,19 @@ snapshot_kind: text
         .unfinished-param
         .ends-with(",") or state.state == "finished"
     ) {
-      state.params.push((
-        name: args.first(),
-        desc-lines: state.unmatched-description,
-      ))
+      state
+        .params
+        .push((
+          name: args.first(),
+          desc-lines: state.unmatched-description,
+        ))
       state.unmatched-description = ()
       state.params += args
         .slice(1)
         .map(arg => (
-        name: arg,
-        desc-lines: (),
-      ))
+          name: arg,
+          desc-lines: (),
+        ))
       state.unfinished-param = ""
     }
   }

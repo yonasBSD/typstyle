@@ -2,7 +2,6 @@ use pretty::DocAllocator;
 use typst_syntax::{ast::*, SyntaxKind};
 
 use super::list::{ListStyle, ListStylist};
-use super::mode::Mode;
 use super::plain::PlainStylist;
 use super::util::is_only_one_and;
 use super::PrettyPrinter;
@@ -15,12 +14,17 @@ use super::{
 
 impl<'a> PrettyPrinter<'a> {
     pub(super) fn convert_func_call(&'a self, func_call: FuncCall<'a>) -> ArenaDoc<'a> {
+        if self.current_mode().is_code()
+            && func_call.callee().to_untyped().kind() == SyntaxKind::FieldAccess
+        {
+            return self.convert_dot_chain(func_call.to_untyped());
+        }
         self.convert_expr(func_call.callee())
             + self.convert_func_call_args(func_call, func_call.args())
     }
 
     fn convert_func_call_args(&'a self, func_call: FuncCall<'a>, args: Args<'a>) -> ArenaDoc<'a> {
-        if self.current_mode() == Mode::Math {
+        if self.current_mode().is_math() {
             return self.format_disabled(args.to_untyped());
         }
         let mut doc = self.arena.nil();
@@ -40,7 +44,7 @@ impl<'a> PrettyPrinter<'a> {
     pub(super) fn convert_args(&'a self, args: Args<'a>) -> ArenaDoc<'a> {
         let has_parenthesized_args = has_parenthesized_args(args);
         let parenthesized = if has_parenthesized_args {
-            self.convert_parenthesized_args_as_is(args)
+            self.convert_parenthesized_args(args)
         } else {
             self.arena.nil()
         };
