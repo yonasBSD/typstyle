@@ -8,19 +8,27 @@ snapshot_kind: text
 #let rem = [_Remote_]
 #let lea = [*On leave*]
 
-#show table.cell.where(y: 0): set text(
+#show (
+  table
+    .cell
+    .where(y: 0)
+): set text(
   fill: white,
   weight: "bold",
 )
 
 #table(
-  columns: 6 * (
-    1fr,
-  ),
+  columns: 6
+    * (
+      1fr,
+    ),
   align: (
     x,
     y,
-  ) => if x == 0 or y == 0 {
+  ) => if x
+    == 0
+    or y
+      == 0 {
     left
   } else {
     center
@@ -30,7 +38,10 @@ snapshot_kind: text
     y,
   ) => (
     // Separate black cells with white strokes.
-    left: if y == 0 and x > 0 {
+    left: if y
+      == 0
+      and x
+        > 0 {
       white
     } else {
       black
@@ -40,7 +51,8 @@ snapshot_kind: text
   fill: (
     _,
     y,
-  ) => if y == 0 {
+  ) => if y
+    == 0 {
     black
   },
 
@@ -78,15 +90,17 @@ snapshot_kind: text
 )
 
 #table(
-  columns: 4 * (
-    1fr,
-  ),
+  columns: 4
+    * (
+      1fr,
+    ),
 
   [a], [b], [c], [d],
   fill: (
     _,
     y,
-  ) => if y == 0 {
+  ) => if y
+    == 0 {
     black
   },
   table.cell(rowspan: 2)[aa], table.cell(colspan: 2)[bc], [d],

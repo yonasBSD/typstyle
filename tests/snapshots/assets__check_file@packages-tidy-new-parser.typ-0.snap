@@ -18,7 +18,10 @@ snapshot_kind: text
   delimiter,
 ) = {
   let pos = string.position(delimiter)
-  if pos == none {
+  if (
+    pos
+      == none
+  ) {
     return string
   }
   (
@@ -26,7 +29,8 @@ snapshot_kind: text
       0,
       pos,
     ),
-    string.slice(pos + 1),
+    string.slice(pos
+      + 1),
   )
 }
 
@@ -64,19 +68,44 @@ snapshot_kind: text
     text
   ) {
     let ignore-char = false
-    if c == "\"" and previous-char != "\\" {
-      if literal-mode == none {
+    if (
+      c
+        == "\""
+        and previous-char
+          != "\\"
+    ) {
+      if (
+        literal-mode
+          == none
+      ) {
         literal-mode = "\""
-      } else if literal-mode == "\"" {
+      } else if (
+        literal-mode
+          == "\""
+      ) {
         literal-mode = none
       }
     }
-    if literal-mode == none {
-      if c == "(" {
+    if (
+      literal-mode
+        == none
+    ) {
+      if (
+        c
+          == "("
+      ) {
         brace-level += 1
-      } else if c == ")" {
+      } else if (
+        c
+          == ")"
+      ) {
         brace-level -= 1
-      } else if c == "," and brace-level == 1 {
+      } else if (
+        c
+          == ","
+          and brace-level
+            == 1
+      ) {
         if is-named {
           let (
             name,
@@ -98,15 +127,26 @@ snapshot_kind: text
         arg = ""
         ignore-char = true
         is-named = false
-      } else if c == ":" and brace-level == 1 {
+      } else if (
+        c
+          == ":"
+          and brace-level
+            == 1
+      ) {
         is-named = true
       }
     }
     count-processed-chars += 1
-    if brace-level == 0 {
-      if arg
-        .trim()
-        .len() > 0 {
+    if (
+      brace-level
+        == 0
+    ) {
+      if (
+        arg
+          .trim()
+          .len()
+          > 0
+      ) {
         if is-named {
           let (
             name,
@@ -138,8 +178,10 @@ snapshot_kind: text
   // if arg != "" { args.push(arg) }
   return (
     args: args,
-    brace-level: brace-level - 1,
-    processed-chars: count-processed-chars - 1,
+    brace-level: brace-level
+      - 1,
+    processed-chars: count-processed-chars
+      - 1,
   )
 }
 
@@ -212,7 +254,15 @@ snapshot_kind: text
   label-prefix: "",
 ) = {
   if line.starts-with(" >>> ") {
-    return " #test(`" + line.slice(8) + "`, source-location: (module: \"" + parse-info.label-prefix + "\", line: " + str(line-number) + "))"
+    return (
+      " #test(`"
+        + line.slice(8)
+        + "`, source-location: (module: \""
+        + parse-info.label-prefix
+        + "\", line: "
+        + str(line-number)
+        + "))"
+    )
   }
   line
 }
@@ -230,7 +280,10 @@ snapshot_kind: text
     )
     .join("\n")
 
-  if description == none {
+  if (
+    description
+      == none
+  ) {
     description = ""
   }
 
@@ -320,7 +373,10 @@ snapshot_kind: text
   line,
 ) = {
   let pos = line.position("//")
-  if pos == none {
+  if (
+    pos
+      == none
+  ) {
     return line
   }
   return line
@@ -366,10 +422,16 @@ snapshot_kind: text
       // name: param-parts.first(),
       description: description,
     )
-    if param-parts.len() == 2 {
+    if (
+      param-parts.len()
+        == 2
+    ) {
       param-info.default = param-parts.last()
     }
-    if types != none {
+    if (
+      types
+        != none
+    ) {
       param-info.types = types
     }
     processed-params.insert(
@@ -396,9 +458,15 @@ snapshot_kind: text
     label-prefix: "",
   )
 
-  if definition.args == none {
+  if (
+    definition.args
+      == none
+  ) {
     definition.remove("args")
-    if types != none {
+    if (
+      types
+        != none
+    ) {
       definition.type = types.first()
     }
   } else {
@@ -429,28 +497,41 @@ snapshot_kind: text
       brace-level,
       processed-chars,
     ) = parse-argument-list(state.unfinished-param)
-    if brace-level == -1 {
+    if (
+      brace-level
+        == -1
+    ) {
       // parentheses are already closed on this line
       state.state = "finished"
       let curry = state
         .unfinished-param
         .slice(processed-chars)
         .match(curry-matcher)
-      if curry != none {
+      if (
+        curry
+          != none
+      ) {
         state.curry = (
           name: curry
             .captures
             .first(),
           rest: state
             .unfinished-param
-            .slice(processed-chars + curry.end),
+            .slice(processed-chars
+              + curry.end),
         )
       }
     }
-    if args.len() > 0 and (
-      state
-        .unfinished-param
-        .ends-with(",") or state.state == "finished"
+    if (
+      args.len()
+        > 0
+        and (
+          state
+            .unfinished-param
+            .ends-with(",")
+            or state.state
+              == "finished"
+        )
     ) {
       state
         .params
@@ -487,7 +568,12 @@ snapshot_kind: text
     "",
   ).rev()
   // let lines = ("/// asd", "named: (", "fill: white, ", "cap: \"butt\")", ")").rev()
-  while state.state == "running" and lines.len() > 0 {
+  while (
+    state.state
+      == "running"
+      and lines.len()
+        > 0
+  ) {
     state = parameter-parser(
       state,
       lines.pop(),
@@ -502,9 +588,10 @@ snapshot_kind: text
   src,
 ) = {
   let lines = (
-    src.split("\n") + (
-      "",
-    )
+    src.split("\n")
+      + (
+        "",
+      )
   ).map(str.trim)
 
   let module-description = none
@@ -531,19 +618,28 @@ snapshot_kind: text
   for line in (
     lines
   ) {
-    if param-parser.state == "finished" {
+    if (
+      param-parser.state
+        == "finished"
+    ) {
       let curry = param-parser.at(
         "curry",
         default: none,
       )
 
-      if curry-info != none {
+      if (
+        curry-info
+          != none
+      ) {
         finished-definition = true
         curry-info.args = param-parser.params
         param-parser = param-parser-default
       } else {
         args = param-parser.params
-        if "curry" in param-parser {
+        if (
+          "curry"
+            in param-parser
+        ) {
           let curry = param-parser.curry
           curry-info = (
             name: curry.name,
@@ -554,7 +650,10 @@ snapshot_kind: text
             param-parser,
             curry.rest,
           )
-          if param-parser.state == "finished" {
+          if (
+            param-parser.state
+              == "finished"
+          ) {
             finished-definition = true
             param-parser = param-parser-default
           }
@@ -564,24 +663,36 @@ snapshot_kind: text
         }
       }
     }
-    if param-parser.state == "running" {
+    if (
+      param-parser.state
+        == "running"
+    ) {
       param-parser = parameter-parser(
         param-parser,
         line,
       )
-      if param-parser.state == "running" {
+      if (
+        param-parser.state
+          == "running"
+      ) {
         continue
       }
     }
 
     if finished-definition {
-      if name != none {
+      if (
+        name
+          != none
+      ) {
         definitions.push((
           name: name,
           description: desc-lines,
           args: args,
         ))
-        if curry-info != none {
+        if (
+          curry-info
+            != none
+        ) {
           definitions
             .at(-1)
             .curry-info = curry-info
@@ -599,7 +710,10 @@ snapshot_kind: text
       desc-lines.push(
         line.slice(3),
       )
-    } else if desc-lines != () {
+    } else if (
+      desc-lines
+        != ()
+    ) {
       // look for something to attach the doc-comment to
       // (a parameter or a definition)
 
@@ -607,16 +721,26 @@ snapshot_kind: text
         "#",
         at: start,
       )
-      if line.starts-with("let ") and name == none {
+      if (
+        line.starts-with("let ")
+          and name
+            == none
+      ) {
         found-code = true
         let match = line.match(definition-name-regex)
-        if match != none {
+        if (
+          match
+            != none
+        ) {
           name = match
             .captures
             .first()
-          if match
-            .captures
-            .at(1) != "" {
+          if (
+            match
+              .captures
+              .at(1)
+              != ""
+          ) {
             // it's a function
             param-parser.state = "running"
             param-parser = parameter-parser(
@@ -635,7 +759,10 @@ snapshot_kind: text
           found-code = true
           module-description = desc-lines.join("\n")
         }
-        if name == none {
+        if (
+          name
+            == none
+        ) {
           desc-lines = ()
         }
       }
@@ -646,10 +773,12 @@ snapshot_kind: text
   (
     description: module-description,
     functions: definitions.filter(x => (
-      "args" in x
+      "args"
+        in x
     )),
     variables: definitions.filter(x => (
-      "args" not in x
+      "args"
+        not in x
     )),
   )
 }

@@ -2,6 +2,7 @@
 source: tests/assets.rs
 expression: doc_string
 input_file: tests/assets/simple-paper.typ
+snapshot_kind: text
 ---
 #let project(
   title: "",
@@ -49,7 +50,10 @@ input_file: tests/assets/simple-paper.typ
   show heading: it => box(width: 100%)[
     #v(0.50em)
     #set text(font: heading-font)
-    #if it.numbering != none {
+    #if (
+      it.numbering
+        != none
+    ) {
       counter(heading).display()
     }
     #h(0.75em)
@@ -85,10 +89,11 @@ input_file: tests/assets/simple-paper.typ
     grid(
       columns: (
         1fr,
-      ) * calc.min(
-        3,
-        authors.len(),
-      ),
+      )
+        * calc.min(
+          3,
+          authors.len(),
+        ),
       gutter: 1em,
       ..authors.map(author => align(
         center,
@@ -141,11 +146,17 @@ input_file: tests/assets/simple-paper.typ
   show link: underline
   show link: set text(blue)
 
-  if abstract != none [
+  if (
+    abstract
+      != none
+  ) [
     #v(2pt)
     #h(2em) *摘要：* #abstract
 
-    #if keywords != () [
+    #if (
+      keywords
+        != ()
+    ) [
       *关键字：* #keywords.join("；")
     ]
     #v(2pt)

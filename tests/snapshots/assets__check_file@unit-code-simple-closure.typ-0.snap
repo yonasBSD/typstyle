@@ -22,7 +22,12 @@ snapshot_kind: text
 
 #set heading(numbering: (
   ..num,
-) => if num.pos().len() < 4 {
+) => if (
+  num
+    .pos()
+    .len()
+    < 4
+) {
   numbering(
     "1.1",
     ..num,
@@ -35,7 +40,14 @@ snapshot_kind: text
   none
 ))
 
-#show raw.where(block: false): it => if it.text.starts-with("<") and it.text.ends-with(">") { }
+#show raw.where(block: false): it => if (
+  it
+    .text
+    .starts-with("<")
+    and it
+      .text
+      .ends-with(">")
+) { }
 
 #let show-palette(
   p,

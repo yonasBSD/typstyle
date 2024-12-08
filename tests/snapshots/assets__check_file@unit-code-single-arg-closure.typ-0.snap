@@ -18,13 +18,18 @@ snapshot_kind: text
   )
   let new_hlines = range(
     0,
-    row_len + 1,
+    (
+      row_len
+        + 1
+    ),
   ).filter(y => (
     hlines
       .filter(h => (
-        h.y == y
+        h.y
+          == y
       ))
-      .len() == 0
+      .len()
+      == 0
   ))
   new_hlines
 }

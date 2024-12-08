@@ -71,6 +71,10 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     pub(super) fn convert_binary(&'a self, binary: Binary<'a>) -> ArenaDoc<'a> {
+        // Layout every binary expression except assignment as chain.
+        if binary.op().precedence() > BinOp::Assign.precedence() {
+            return self.parenthesize_if_necessary(|| self.convert_binary_chain(binary));
+        }
         self.convert_flow_like(binary.to_untyped(), |child| {
             if BinOp::from_kind(child.kind()).is_some() {
                 FlowItem::spaced(self.arena.text(child.text().as_str()))
