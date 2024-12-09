@@ -4,6 +4,7 @@ use typst_syntax::{ast::*, SyntaxKind};
 use super::list::{ListStyle, ListStylist};
 use super::mode::Mode;
 use super::plain::PlainStylist;
+use super::style::FoldStyle;
 use super::util::is_only_one_and;
 use super::PrettyPrinter;
 
@@ -55,42 +56,52 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     pub(super) fn convert_parenthesized_args(&'a self, args: Args<'a>) -> ArenaDoc<'a> {
-        // let always_fold = is_only_one_and(args.items(), |item| {
-        //     matches!(item, Arg::Pos(Expr::Code(_)) | Arg::Pos(Expr::Content(_)))
-        // });
-        let arg_count = args
-            .to_untyped()
-            .children()
-            .take_while(|it| it.kind() != SyntaxKind::RightParen)
-            .filter(|it| it.is::<Arg>())
-            .count();
-        let always_fold = is_only_one_and(args.items().take(arg_count), |arg| {
+        let _g = self.with_mode(Mode::CodeCont);
+
+        let mut fold_style = self.get_fold_style(args);
+
+        let children = || {
+            args.to_untyped()
+                .children()
+                .take_while(|it| it.kind() != SyntaxKind::RightParen)
+        };
+        let arg_count = children().filter(|it| it.is::<Arg>()).count();
+
+        is_only_one_and(args.items().take(arg_count), |arg| {
             let inner = match arg {
                 Arg::Pos(p) => *p,
-                Arg::Named(n) => n.expr(),
+                Arg::Named(_) => {
+                    fold_style = FoldStyle::Fit;
+                    return false;
+                }
                 Arg::Spread(s) => s.expr(),
             };
-            !matches!(inner, Expr::FuncCall(_))
+            fold_style = if matches!(
+                inner,
+                Expr::FuncCall(_) | Expr::FieldAccess(_) | Expr::Unary(_) | Expr::Binary(_)
+            ) {
+                FoldStyle::Fit
+            } else {
+                FoldStyle::Always
+            };
+            true
         });
-        let mut closed = false;
+
         ListStylist::new(self)
             .keep_linebreak(self.config.blank_lines_upper_bound)
-            .process_list_impl(args.to_untyped(), |child| {
+            .with_fold_style(fold_style)
+            .process_iterable_impl(children(), |child| {
                 // We should ignore additional args here.
-                if child.kind() == SyntaxKind::RightParen {
-                    closed = true;
-                } else if !closed {
-                    return child.cast().map(|arg| self.convert_arg(arg));
-                }
-                Option::None
+                child.cast().map(|arg| self.convert_arg(arg))
             })
-            .always_fold_if(|| always_fold)
             .print_doc(ListStyle {
                 ..Default::default()
             })
     }
 
-    pub(super) fn convert_parenthesized_args_as_is(&'a self, args: Args<'a>) -> ArenaDoc<'a> {
+    fn convert_parenthesized_args_as_is(&'a self, args: Args<'a>) -> ArenaDoc<'a> {
+        let _g = self.with_mode(Mode::CodeCont);
+
         let inner = PlainStylist::new(self)
             .process_iterable(get_parenthesized_args_untyped(args), |child| {
                 self.convert_arg(child)

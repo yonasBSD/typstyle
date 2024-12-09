@@ -63,21 +63,23 @@ snapshot_kind: text
 #let cell(
   lhs,
   rhs,
-) = box(lhs
-  + enspace
-  + rhs)
+) = box(
+  lhs
+    + enspace
+    + rhs,
+)
 // Grid for code blocks
-#set grid(columns: (
-  2em,
-  auto,
-))
+#set grid(
+  columns: (
+    2em,
+    auto,
+  ),
+)
 // Table for math-code listing
 #set table(
   stroke: none,
-  align: (
-    horizon
-      + left
-  ),
+  align: horizon
+    + left,
   inset: 0pt,
   row-gutter: 0.45em,
 )
@@ -99,11 +101,17 @@ snapshot_kind: text
     "E",
   )
   let X = "X"
-  box(T
-    + kern(-0.1667em)
-    + E
-    + kern(-0.125em)
-    + X)
+  box(
+    T
+      + kern(
+        -0.1667em,
+      )
+      + E
+      + kern(
+        -0.125em,
+      )
+      + X,
+  )
 })
 #let LaTeX = style(styles => {
   let l = measure(
@@ -127,11 +135,17 @@ snapshot_kind: text
       - l.height,
     "A",
   )
-  box(L
-    + kern(-0.36em)
-    + A
-    + kern(-0.15em)
-    + TeX)
+  box(
+    L
+      + kern(
+        -0.36em,
+      )
+      + A
+      + kern(
+        -0.15em,
+      )
+      + TeX,
+  )
 })
 
 // Unavailable (last check version)
@@ -156,21 +170,29 @@ snapshot_kind: text
   ),
 )
 // Tricky figure numbering
-#set figure(numbering: n => {
-  (
-    [??],
-    [!!],
-    [?!],
-  ).at(n)
-})
+#set figure(
+  numbering: n => {
+    (
+      [??],
+      [!!],
+      [?!],
+    ).at(n)
+  },
+)
 // No prefix
-#set ref(supplement: "")
+#set ref(
+  supplement: "",
+)
 
 // Justified paragraphs
-#set par(justify: true)
+#set par(
+  justify: true,
+)
 
 // Run-in sections, like LaTeX \paragraph
-#show heading.where(level: 1): it => text(
+#show heading.where(
+  level: 1,
+): it => text(
   size: normalsize,
   weight: "bold",
   fill: headcolor,
@@ -179,7 +201,9 @@ snapshot_kind: text
 )
 
 // Black raw code
-#show raw.where(block: false): it => {
+#show raw.where(
+  block: false,
+): it => {
   it.text
 }
 
@@ -274,7 +298,9 @@ $
   cal(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z)
 $
 
-#show math.equation: set text(stylistic-set: 1)
+#show math.equation: set text(
+  stylistic-set: 1,
+)
 Get script letters, such as $cal(P)$ from `$cal(P)$`, by changing the `stylistic-set` parameter of `text()` to the corresponding set.
 
 = Greek
