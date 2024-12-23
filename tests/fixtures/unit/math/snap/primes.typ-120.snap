@@ -1,0 +1,9 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/unit/math/primes.typ
+snapshot_kind: text
+---
+$ a' $
+$ a'''''' $
+$ a+b'' $
+$ (a'+b)''' $

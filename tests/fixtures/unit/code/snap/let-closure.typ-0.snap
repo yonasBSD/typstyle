@@ -1,0 +1,11 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/unit/code/let-closure.typ
+snapshot_kind: text
+---
+#let f(
+  long-arg-1,
+) = {
+  // comment
+  let x = 1111111111111111111111111111111111111111111111111111111111111111111111111111111
+}

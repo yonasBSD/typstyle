@@ -1,0 +1,14 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/unit/markup/parbreak-multiline.typ
+snapshot_kind: text
+---
+== Test
+
+
+
+
+=== 1.1
+
+
+=== 1.2

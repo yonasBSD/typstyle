@@ -1,0 +1,8 @@
+---
+source: tests/src/unit.rs
+info:
+  erroneous: true
+input_file: tests/fixtures/typstfmt/148-broken-input.typ
+snapshot_kind: text
+---
+

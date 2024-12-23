@@ -1,0 +1,9 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/typstfmt/84-ws-text-code.typ
+snapshot_kind: text
+---
+#let f() = []
+a#sym.RR
+
+a#f()

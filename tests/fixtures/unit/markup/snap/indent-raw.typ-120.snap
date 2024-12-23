@@ -1,0 +1,9 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/unit/markup/indent-raw.typ
+snapshot_kind: text
+---
+`123`
+```typ
+`code`
+```

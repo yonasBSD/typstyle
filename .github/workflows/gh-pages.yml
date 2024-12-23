@@ -42,12 +42,16 @@ jobs:
         with:
           enable-cache: true
           cache-prefix: 'typstyle-rye'
-      - run: |
-          wasm-pack build
+      - name: Build wasm
+        run: |
+          cd crates/typstyle-core
+          wasm-pack build --features wasm
+          cp ../../README.md pkg
+          cp ../../LICENSE pkg
       - name: Publish to npm
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          cd pkg
+          cd crates/typstyle-core/pkg
           npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

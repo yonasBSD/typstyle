@@ -1,0 +1,27 @@
+[package]
+name = "typstyle-tests"
+version.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+edition.workspace = true
+publish = false
+
+[[test]]
+name = "tests"
+path = "src/tests.rs"
+harness = false
+
+[features]
+default = ["consistency"]
+consistency = ["typstyle-consistency"]
+
+[dependencies]
+typstyle-core.workspace = true
+typstyle-consistency = { workspace = true, optional = true }
+
+anyhow.workspace = true
+typst-syntax.workspace = true
+
+insta.workspace = true
+libtest-mimic.workspace = true
+pretty_assertions.workspace = true

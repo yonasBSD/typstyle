@@ -1,0 +1,12 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/typstfmt/96-destruct-comma.typ
+snapshot_kind: text
+---
+#let (
+  a,
+  b,
+) = (
+  1,
+  2,
+)

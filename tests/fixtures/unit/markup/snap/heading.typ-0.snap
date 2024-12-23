@@ -1,0 +1,8 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/unit/markup/heading.typ
+snapshot_kind: text
+---
+== Level 2
+
+== Level 2 with // comments

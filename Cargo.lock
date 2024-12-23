@@ -530,6 +530,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 
 [[package]]
+name = "colored"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
+dependencies = [
+ "lazy_static",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "comemo"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1719,7 +1729,20 @@ dependencies = [
  "console",
  "lazy_static",
  "linked-hash-map",
+ "regex",
+ "serde",
  "similar",
+]
+
+[[package]]
+name = "insta-cmd"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffeeefa927925cced49ccb01bf3e57c9d4cd132df21e576eb9415baeab2d3de6"
+dependencies = [
+ "insta",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2618,9 +2641,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.7"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b6dfecf2c74bce2466cabf93f6664d6998a69eb21e39f4207930065b27b771f"
+checksum = "03a862b389f93e68874fbf580b9de08dd02facb9a788ebadaf4a3fd33cf58834"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -4018,35 +4041,66 @@ dependencies = [
 
 [[package]]
 name = "typstyle"
-version = "0.12.10"
+version = "0.12.13"
 dependencies = [
+ "anstream",
  "anyhow",
  "clap",
  "clap_complete",
- "criterion",
- "ecow",
+ "colored",
  "insta",
+ "insta-cmd",
+ "log",
+ "tempfile",
+ "typst-syntax",
+ "typstyle-core",
+ "vergen",
+ "vergen-gitcl",
+ "walkdir",
+]
+
+[[package]]
+name = "typstyle-consistency"
+version = "0.12.13"
+dependencies = [
+ "anyhow",
+ "ecow",
  "itertools 0.13.0",
- "libtest-mimic",
- "once_cell",
- "pathdiff",
- "pretty",
  "pretty_assertions",
- "reflexo",
  "reflexo-typst",
- "reflexo-typst-shim",
- "reflexo-vfs",
  "reflexo-world",
- "rustc-hash",
  "typst",
  "typst-assets",
  "typst-pdf",
  "typst-render",
- "typst-syntax",
- "vergen",
- "vergen-gitcl",
  "walkdir",
+]
+
+[[package]]
+name = "typstyle-core"
+version = "0.12.13"
+dependencies = [
+ "criterion",
+ "ecow",
+ "insta",
+ "itertools 0.13.0",
+ "pretty",
+ "rustc-hash",
+ "typst-syntax",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "typstyle-tests"
+version = "0.12.13"
+dependencies = [
+ "anyhow",
+ "insta",
+ "libtest-mimic",
+ "pretty_assertions",
+ "typst-syntax",
+ "typstyle-consistency",
+ "typstyle-core",
 ]
 
 [[package]]

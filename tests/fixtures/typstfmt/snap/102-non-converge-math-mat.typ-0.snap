@@ -1,0 +1,6 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/typstfmt/102-non-converge-math-mat.typ
+snapshot_kind: text
+---
+$mat(11111111111111111111111111111111111111111111111111111111111111111111111111;)$

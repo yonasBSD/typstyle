@@ -1,0 +1,9 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/unit/markup/list-multiline.typ
+snapshot_kind: text
+---
+- Lorem ipsum dolor sit amet,
+  consectetur adipiscing elit,
+- sed do eiusmod tempor incididunt
+  ut labore et dolore magna aliqua.

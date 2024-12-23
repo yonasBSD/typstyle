@@ -1,0 +1,6 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/typstfmt/93-math-stop.typ
+snapshot_kind: text
+---
+$$.

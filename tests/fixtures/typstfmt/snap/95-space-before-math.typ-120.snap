@@ -1,0 +1,6 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/typstfmt/95-space-before-math.typ
+snapshot_kind: text
+---
+aaa $a$

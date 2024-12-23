@@ -1,0 +1,7 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/unit/math/sqrt.typ
+snapshot_kind: text
+---
+$ √2345 $
+$ ∜2345^3 $

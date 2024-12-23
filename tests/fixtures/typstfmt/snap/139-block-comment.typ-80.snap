@@ -1,0 +1,10 @@
+---
+source: tests/src/unit.rs
+input_file: tests/fixtures/typstfmt/139-block-comment.typ
+snapshot_kind: text
+---
+#let test_func() = {
+  /*
+  test
+  */
+}
