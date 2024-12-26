@@ -2,8 +2,9 @@ use std::{env, error::Error, fs, path::Path};
 
 use insta::internals::Content;
 use libtest_mimic::{Failed, Trial};
-use typst_syntax::Source;
-use typstyle_core::{PrinterConfig, Typstyle};
+use typstyle_core::{Config, Typstyle};
+
+use crate::common::{fixtures_dir, read_source};
 
 /// Creates one test for each `.typ` file in the current directory or
 /// sub-directories of the current directory.
@@ -40,6 +41,10 @@ pub fn collect_tests() -> Result<Vec<Trial>, Box<dyn Error>> {
 
             if file_type.is_dir() {
                 // Handle directories
+                if path.file_name() == Some("partial".as_ref()) {
+                    // Ignore partial tests
+                    continue;
+                }
                 visit_dir(&path, tests)?;
                 continue;
             } else if !(file_type.is_file() && path.extension() == Some("typ".as_ref())) {
@@ -73,7 +78,7 @@ pub fn collect_tests() -> Result<Vec<Trial>, Box<dyn Error>> {
 
     // We recursively look for `.typ` files, starting from the current directory.
     let mut tests = Vec::new();
-    let current_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+    let current_dir = fixtures_dir();
     visit_dir(&current_dir, &mut tests)?;
 
     Ok(tests)
@@ -95,8 +100,8 @@ fn check_snapshot(path: &Path, width: usize) -> Result<(), Failed> {
         if source.root().erroneous() {
             insta::assert_snapshot!(snap_name, "");
         } else {
-            let cfg = PrinterConfig::new_with_width(width);
-            let formatted = Typstyle::new_with_src(source, cfg).pretty_print().unwrap();
+            let cfg = Config::new().with_width(width);
+            let formatted = Typstyle::new(cfg).format_source(&source).unwrap();
 
             insta::assert_snapshot!(snap_name, formatted);
         }
@@ -110,9 +115,9 @@ fn check_convergence(path: &Path, width: usize) -> Result<(), Failed> {
         return Ok(());
     }
 
-    let cfg = PrinterConfig::new_with_width(width);
-    let first_pass = Typstyle::new_with_src(source, cfg.clone()).pretty_print()?;
-    let second_pass = Typstyle::new_with_content(first_pass.clone(), cfg).pretty_print()?;
+    let cfg = Config::new().with_width(width);
+    let first_pass = Typstyle::new(cfg.clone()).format_source(&source)?;
+    let second_pass = Typstyle::new(cfg).format_content(&first_pass)?;
     pretty_assertions::assert_str_eq!(
         first_pass,
         second_pass,
@@ -130,8 +135,8 @@ fn check_output_consistency(path: &Path, width: usize) -> Result<(), Failed> {
         return Ok(());
     }
 
-    let cfg = PrinterConfig::new_with_width(width);
-    let formatted_src = Typstyle::new_with_src(source.clone(), cfg).pretty_print()?;
+    let cfg = Config::new().with_width(width);
+    let formatted_src = Typstyle::new(cfg).format_source(&source)?;
 
     compare_docs(
         "",
@@ -141,27 +146,4 @@ fn check_output_consistency(path: &Path, width: usize) -> Result<(), Failed> {
     )?;
 
     Ok(())
-}
-
-fn read_source(path: &Path) -> Result<Source, Failed> {
-    read_content(path).map(Source::detached)
-}
-
-fn read_content(path: &Path) -> Result<String, Failed> {
-    let content = fs::read(path).map_err(|e| format!("Cannot read file: {e}"))?;
-
-    // Check that the file is valid UTF-8
-    let content = String::from_utf8(content)
-        .map_err(|_| "The file's contents are not a valid UTF-8 string!")?;
-    let content = remove_crlf(content);
-
-    Ok(content)
-}
-
-fn remove_crlf(content: String) -> String {
-    if cfg!(windows) {
-        content.replace("\r\n", "\n")
-    } else {
-        content
-    }
 }

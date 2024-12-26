@@ -9,9 +9,7 @@ use log::{debug, error, info, warn};
 use typst_syntax::Source;
 use walkdir::{DirEntry, WalkDir};
 
-use typstyle_core::{
-    attr::AttrStore, strip_trailing_whitespace, PrettyPrinter, PrinterConfig, Typstyle,
-};
+use typstyle_core::{Config, Typstyle};
 
 use crate::cli::CliArguments;
 
@@ -72,8 +70,8 @@ pub fn format_all(directory: &Option<PathBuf>, args: &CliArguments) -> Result<Fo
         let Ok(content) = std::fs::read_to_string(entry.path()) else {
             continue;
         };
-        let cfg = PrinterConfig::new_with_width(args.style.column);
-        let Ok(res) = Typstyle::new_with_content(content.clone(), cfg).pretty_print() else {
+        let cfg = Config::new().with_width(args.style.column);
+        let Ok(res) = Typstyle::new(cfg).format_content(&content) else {
             warn!("Failed to format: {}", entry.path().display());
             continue;
         };
@@ -183,7 +181,7 @@ pub fn format_one(input: Option<&PathBuf>, args: &CliArguments) -> Result<Format
         }
         FormatResult::Changed(res) | FormatResult::Unchanged(res) => {
             if !args.inplace && !args.check {
-                println!("{}", res);
+                print!("{}", res);
             }
         }
         FormatResult::Erroneous => {
@@ -206,26 +204,19 @@ enum FormatResult {
 fn format_debug(content: String, args: &CliArguments) -> FormatResult {
     let source = Source::detached(&content);
     let root = source.root();
-    let attr_store = AttrStore::new(root);
     if args.debug.ast {
         println!("{:#?}", root);
     }
 
-    // Error formatting document.
-    if root.erroneous() {
-        return FormatResult::Erroneous;
-    }
-
-    let config = PrinterConfig {
-        max_width: args.style.column,
-        ..Default::default()
+    let config = Config::new().with_width(args.style.column);
+    let res = match Typstyle::new(config).format_source_inspect(&source, |doc| {
+        if args.debug.pretty_doc {
+            println!("{:#?}", doc);
+        }
+    }) {
+        Ok(res) => res,
+        Err(_) => return FormatResult::Erroneous,
     };
-    let printer = PrettyPrinter::new(config, attr_store);
-    let doc = printer.convert_markup(root.cast().unwrap());
-    if args.debug.pretty_doc {
-        println!("{:#?}", doc);
-    }
-    let res = strip_trailing_whitespace(&doc.pretty(args.style.column).to_string());
 
     // Compare `res` with `content` to perform CI checks
     if res != content {

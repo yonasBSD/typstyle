@@ -1,89 +1,83 @@
-#[doc(hidden)]
 pub mod attr;
-#[doc(hidden)]
 pub mod ext;
-#[doc(hidden)]
+pub mod partial;
 pub mod pretty;
 
-#[doc(hidden)]
-pub use attr::AttrStore;
-#[doc(hidden)]
-pub use pretty::PrettyPrinter;
-pub use pretty::PrinterConfig;
+mod config;
+mod utils;
 
+pub use attr::AttrStore;
+pub use config::Config;
+
+use pretty::ArenaDoc;
+use pretty::PrettyPrinter;
 use typst_syntax::Source;
 
 #[derive(Debug)]
-pub enum FormatError {
+pub enum Error {
     SyntaxError,
 }
 
-impl std::fmt::Display for FormatError {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FormatError::SyntaxError => write!(f, "The document has syntax errors"),
+            Error::SyntaxError => write!(f, "The document has syntax errors"),
         }
     }
 }
 
 /// Entry point for pretty printing a typst document.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Typstyle {
-    source: Source,
-    config: PrinterConfig,
+    config: Config,
 }
 
 impl Typstyle {
-    /// Create a new Typstyle instance from a string.
-    /// # Example
-    /// ```rust
-    /// use typstyle_core::{PrinterConfig, Typstyle};
-    /// let content = "#{1+1}";
-    /// let res = Typstyle::new_with_content(content.to_string(), PrinterConfig {
-    ///     max_width: 80,
-    ///     ..Default::default()
-    /// }).pretty_print();
-    /// ```
-    pub fn new_with_content(content: impl Into<String>, config: PrinterConfig) -> Self {
+    /// Create Typstyle formatter with config.
+    pub fn new(config: Config) -> Self {
+        Self { config }
+    }
+
+    /// Format typst content.
+    pub fn format_content(self, content: impl Into<String>) -> Result<String, Error> {
         // We should ensure that the source tree is spanned.
-        Self::new_with_src(Source::detached(content.into()), config)
+        self.format_source(&Source::detached(content.into()))
     }
 
-    /// Create a new Typstyle instance from a [`Source`].
-    ///
-    /// This is useful when you have a [`Source`] instance and you can avoid reparsing the content.
-    pub fn new_with_src(src: Source, config: PrinterConfig) -> Self {
-        Self {
-            source: src,
-            config,
-        }
+    /// Format typst source.
+    pub fn format_source(self, source: &Source) -> Result<String, Error> {
+        self.format_source_inspect(source, |_| {})
     }
 
-    /// Pretty print the content to a string.
-    pub fn pretty_print(&self) -> Result<String, FormatError> {
-        let root = self.source.root();
+    /// Format typst source, and inspect the pretty document.
+    pub fn format_source_inspect(
+        self,
+        source: &Source,
+        inspector: impl FnOnce(&ArenaDoc<'_>),
+    ) -> Result<String, Error> {
+        let root = source.root();
         if root.erroneous() {
-            return Err(FormatError::SyntaxError);
+            return Err(Error::SyntaxError);
         }
         let attr_store = AttrStore::new(root);
         let printer = PrettyPrinter::new(self.config.clone(), attr_store);
         let markup = root.cast().unwrap();
         let doc = printer.convert_markup(markup);
+        inspector(&doc);
         let result = doc.pretty(self.config.max_width).to_string();
-        let result = strip_trailing_whitespace(&result);
+        let result = utils::strip_trailing_whitespace(&result);
         Ok(result)
     }
 }
 
-#[doc(hidden)]
-/// Strip trailing whitespace in each line of the input string.
-pub fn strip_trailing_whitespace(s: &str) -> String {
-    let res = s
-        .lines()
-        .map(|line| line.trim_end())
-        .collect::<Vec<_>>()
-        .join("\n");
-    res + "\n"
+/// Format typst content by Typstyle configured with given max_width.
+///
+/// It returns the original string if the source is erroneous.
+pub fn format_with_width(content: &str, width: usize) -> String {
+    let config = Config::new().with_width(width);
+    Typstyle::new(config)
+        .format_content(content)
+        .unwrap_or_else(|_| content.to_string())
 }
 
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
@@ -92,9 +86,5 @@ use wasm_bindgen::prelude::*;
 #[cfg(all(target_arch = "wasm32", feature = "wasm"))]
 #[wasm_bindgen]
 pub fn pretty_print_wasm(content: &str, width: usize) -> String {
-    let cfg = PrinterConfig::new_with_width(width);
-    let typstyle = Typstyle::new_with_content(content, cfg);
-    typstyle
-        .pretty_print()
-        .unwrap_or_else(|_| content.to_string())
+    format_with_width(content, width)
 }

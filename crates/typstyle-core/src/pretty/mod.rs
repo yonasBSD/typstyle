@@ -6,7 +6,6 @@ mod code_chain;
 mod code_flow;
 mod code_list;
 mod comment;
-mod config;
 mod flow;
 mod func_call;
 mod import;
@@ -18,7 +17,7 @@ mod plain;
 mod table;
 mod util;
 
-pub use config::PrinterConfig;
+pub use mode::Mode;
 
 use std::cell::RefCell;
 
@@ -26,22 +25,21 @@ use itertools::Itertools;
 use pretty::{Arena, DocAllocator, DocBuilder};
 use typst_syntax::{ast::*, SyntaxKind, SyntaxNode};
 
-use crate::{ext::StrExt, AttrStore};
+use crate::{ext::StrExt, AttrStore, Config};
 use doc_ext::DocExt;
-use mode::Mode;
 use style::FoldStyle;
 
-type ArenaDoc<'a> = DocBuilder<'a, Arena<'a>>;
+pub type ArenaDoc<'a> = DocBuilder<'a, Arena<'a>>;
 
 pub struct PrettyPrinter<'a> {
-    config: PrinterConfig,
+    config: Config,
     attr_store: AttrStore,
     mode: RefCell<Vec<Mode>>,
     arena: Arena<'a>,
 }
 
 impl<'a> PrettyPrinter<'a> {
-    pub fn new(config: PrinterConfig, attr_store: AttrStore) -> Self {
+    pub fn new(config: Config, attr_store: AttrStore) -> Self {
         Self {
             config,
             attr_store,
@@ -95,7 +93,7 @@ impl<'a> PrettyPrinter<'a> {
         self.arena.text(node.text().as_str())
     }
 
-    fn convert_expr(&'a self, expr: Expr<'a>) -> ArenaDoc<'a> {
+    pub fn convert_expr(&'a self, expr: Expr<'a>) -> ArenaDoc<'a> {
         if let Some(res) = self.check_disabled(expr.to_untyped()) {
             return res;
         }
@@ -305,7 +303,7 @@ impl<'a> PrettyPrinter<'a> {
         }
     }
 
-    fn convert_pattern(&'a self, pattern: Pattern<'a>) -> ArenaDoc<'a> {
+    pub fn convert_pattern(&'a self, pattern: Pattern<'a>) -> ArenaDoc<'a> {
         if let Some(res) = self.check_disabled(pattern.to_untyped()) {
             return res;
         }
