@@ -2,9 +2,9 @@ use std::{env, error::Error, fs, path::Path};
 
 use insta::internals::Content;
 use libtest_mimic::{Failed, Trial};
-use typstyle_core::{Config, Typstyle};
+use typstyle_core::Typstyle;
 
-use crate::common::{fixtures_dir, read_source};
+use crate::common::{fixtures_dir, read_source_with_config};
 
 /// Creates one test for each `.typ` file in the current directory or
 /// sub-directories of the current directory.
@@ -56,11 +56,19 @@ pub fn collect_tests() -> Result<Vec<Trial>, Box<dyn Error>> {
                 .display()
                 .to_string();
 
+            let is_no_snap = path
+                .file_stem()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with('_'));
+            if !is_no_snap {
+                tests.extend([
+                    make_snapshot_test(&path, &name, 0),
+                    make_snapshot_test(&path, &name, 40),
+                    make_snapshot_test(&path, &name, 80),
+                    make_snapshot_test(&path, &name, 120),
+                ]);
+            }
             tests.extend([
-                make_snapshot_test(&path, &name, 0),
-                make_snapshot_test(&path, &name, 40),
-                make_snapshot_test(&path, &name, 80),
-                make_snapshot_test(&path, &name, 120),
                 make_convergence_test(&path, &name, 0),
                 make_convergence_test(&path, &name, 40),
                 make_convergence_test(&path, &name, 80),
@@ -85,7 +93,7 @@ pub fn collect_tests() -> Result<Vec<Trial>, Box<dyn Error>> {
 }
 
 fn check_snapshot(path: &Path, width: usize) -> Result<(), Failed> {
-    let source = read_source(path)?;
+    let (source, mut cfg) = read_source_with_config(path)?;
 
     let mut settings = insta::Settings::clone_current();
     settings.set_prepend_module_to_snapshot(false);
@@ -100,7 +108,7 @@ fn check_snapshot(path: &Path, width: usize) -> Result<(), Failed> {
         if source.root().erroneous() {
             insta::assert_snapshot!(snap_name, "");
         } else {
-            let cfg = Config::new().with_width(width);
+            cfg.max_width = width;
             let mut formatted = Typstyle::new(cfg).format_source(&source).unwrap();
             if formatted.starts_with('\n') {
                 formatted.insert_str(0, "// DUMMY\n");
@@ -116,12 +124,12 @@ fn check_snapshot(path: &Path, width: usize) -> Result<(), Failed> {
 }
 
 fn check_convergence(path: &Path, width: usize) -> Result<(), Failed> {
-    let source = read_source(path)?;
+    let (source, mut cfg) = read_source_with_config(path)?;
     if source.root().erroneous() {
         return Ok(());
     }
 
-    let cfg = Config::new().with_width(width);
+    cfg.max_width = width;
     let first_pass = Typstyle::new(cfg.clone()).format_source(&source)?;
     let second_pass = Typstyle::new(cfg).format_content(&first_pass)?;
     pretty_assertions::assert_str_eq!(
@@ -136,12 +144,12 @@ fn check_convergence(path: &Path, width: usize) -> Result<(), Failed> {
 fn check_output_consistency(path: &Path, width: usize) -> Result<(), Failed> {
     use typstyle_consistency::{cmp::compare_docs, universe::make_universe};
 
-    let source = read_source(path)?;
+    let (source, mut cfg) = read_source_with_config(path)?;
     if source.root().erroneous() {
         return Ok(());
     }
 
-    let cfg = Config::new().with_width(width);
+    cfg.max_width = width;
     let formatted_src = Typstyle::new(cfg).format_source(&source)?;
 
     compare_docs(

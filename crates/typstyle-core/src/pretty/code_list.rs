@@ -1,4 +1,4 @@
-use typst_syntax::{ast::*, SyntaxKind, SyntaxNode};
+use typst_syntax::{ast::*, SyntaxKind};
 
 use super::{
     list::{ListStyle, ListStylist},
@@ -77,14 +77,32 @@ impl<'a> PrettyPrinter<'a> {
             })
     }
 
+    /// In math mode, we have `$fun(1, 2; 3, 4)$ == $fun(#(1, 2), #(3, 4))$`.
     pub(super) fn convert_array(&'a self, array: Array<'a>) -> ArenaDoc<'a> {
         let _g = self.with_mode(Mode::CodeCont);
+
+        // Whether the array has parens.
+        // This is also used to determine whether we need to add a trailing comma.
+        // Note that we should not strip trailing commas in math.
+        let is_explicit = array
+            .to_untyped()
+            .children()
+            .next()
+            .is_some_and(|child| child.kind() == SyntaxKind::LeftParen);
+        let ends_with_comma = !is_explicit
+            && array
+                .to_untyped()
+                .children()
+                .last()
+                .is_some_and(|child| child.kind() == SyntaxKind::Comma);
 
         ListStylist::new(self)
             .with_fold_style(self.get_fold_style(array))
             .process_list(array.to_untyped(), |node| self.convert_array_item(node))
             .print_doc(ListStyle {
-                add_trailing_sep_single: true,
+                add_trailing_sep_single: is_explicit,
+                add_trailing_sep_always: ends_with_comma,
+                delim: if is_explicit { ("(", ")") } else { ("", "") },
                 ..Default::default()
             })
     }
@@ -143,28 +161,6 @@ impl<'a> PrettyPrinter<'a> {
             .always_fold_if(|| is_single_simple)
             .print_doc(ListStyle {
                 omit_delim_single: is_single_simple,
-                ..Default::default()
-            })
-    }
-
-    pub(super) fn convert_import_items(
-        &'a self,
-        import_items_nodes: Vec<&'a SyntaxNode>,
-    ) -> ArenaDoc<'a> {
-        // Note that `ImportItem` does not implement `AstNode`.
-        ListStylist::new(self)
-            .process_iterable_impl(import_items_nodes.into_iter(), |child| match child.kind() {
-                SyntaxKind::RenamedImportItem => child
-                    .cast()
-                    .map(|item| self.convert_import_item_renamed(item)),
-                SyntaxKind::ImportItemPath => {
-                    child.cast().map(|item| self.convert_import_item_path(item))
-                }
-                _ => Option::None,
-            })
-            .print_doc(ListStyle {
-                omit_delim_flat: true,
-                omit_delim_empty: true,
                 ..Default::default()
             })
     }
