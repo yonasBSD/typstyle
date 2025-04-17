@@ -1,14 +1,15 @@
 use pretty::DocAllocator;
 use typst_syntax::{ast::*, SyntaxKind, SyntaxNode};
 
-use crate::ext::StrExt;
-
 use super::{
-    flow::FlowItem,
-    list::{ListStyle, ListStylist},
+    layout::{
+        flow::FlowItem,
+        list::{ListStyle, ListStylist},
+    },
     style::FoldStyle,
     ArenaDoc, Mode, PrettyPrinter,
 };
+use crate::ext::StrExt;
 
 impl<'a> PrettyPrinter<'a> {
     pub(super) fn convert_equation(&'a self, equation: Equation<'a>) -> ArenaDoc<'a> {
@@ -75,6 +76,7 @@ impl<'a> PrettyPrinter<'a> {
                 doc += self.arena.text("#");
                 peek_hash = true;
             } else {
+                // may be LeftParen, RightParen
                 doc += self.convert_trivia_untyped(node);
             }
         }
@@ -143,7 +145,7 @@ impl<'a> PrettyPrinter<'a> {
             } else if node.kind() == SyntaxKind::Space {
                 FlowItem::none()
             } else {
-                FlowItem::tight(self.convert_verbatim_untyped(node))
+                FlowItem::tight(self.convert_trivia_untyped(node))
             }
         })
     }
@@ -157,7 +159,7 @@ impl<'a> PrettyPrinter<'a> {
             if let Some(expr) = node.cast::<Expr>() {
                 FlowItem::spaced(self.convert_expr(expr))
             } else if node.kind() != SyntaxKind::Space {
-                FlowItem::spaced(self.convert_verbatim_untyped(node))
+                FlowItem::spaced(self.convert_trivia_untyped(node))
             } else {
                 FlowItem::none()
             }
@@ -171,7 +173,7 @@ impl<'a> PrettyPrinter<'a> {
             } else if node.kind() == SyntaxKind::Space {
                 FlowItem::none()
             } else {
-                FlowItem::tight(self.convert_verbatim_untyped(node))
+                FlowItem::tight(self.convert_trivia_untyped(node))
             }
         })
     }
