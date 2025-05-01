@@ -2,6 +2,7 @@ use pretty::DocAllocator;
 use typst_syntax::{ast::*, SyntaxKind, SyntaxNode};
 
 use super::{
+    context::AlignMode,
     layout::{
         flow::FlowItem,
         list::{ListStyle, ListStylist},
@@ -9,7 +10,7 @@ use super::{
     },
     style::FoldStyle,
     table,
-    util::{get_parenthesized_args_untyped, has_parenthesized_args, is_only_one_and},
+    util::{get_parenthesized_args, get_parenthesized_args_untyped, has_parenthesized_args},
     ArenaDoc, Context, Mode, PrettyPrinter,
 };
 use crate::ext::StrExt;
@@ -78,41 +79,75 @@ impl<'a> PrettyPrinter<'a> {
     ) -> ArenaDoc<'a> {
         let ctx = ctx.with_mode(Mode::CodeCont);
 
-        let mut fold_style = self.get_fold_style(ctx, args);
-
-        let children = || {
+        let get_children = || {
             args.to_untyped()
                 .children()
                 .take_while(|it| it.kind() != SyntaxKind::RightParen)
         };
-        let arg_count = children().filter(|it| it.is::<Arg>()).count();
+        let arg_count = get_children()
+            .filter(|it| SyntaxNode::is::<Arg>(it))
+            .count(); // should exclude args in brackets
 
-        if !ctx.break_suppressed {
-            is_only_one_and(args.items().take(arg_count), |arg| {
-                let inner = match arg {
-                    Arg::Pos(p) => *p,
-                    Arg::Named(_) => {
-                        fold_style = FoldStyle::Fit;
-                        return false;
+        // if there is only one blocky arg, and it's the last one, we can use compact style
+        let is_blocky = |expr| {
+            matches!(
+                expr,
+                Expr::Code(_)
+                    | Expr::Conditional(_)
+                    | Expr::While(_)
+                    | Expr::For(_)
+                    | Expr::Contextual(_)
+                    | Expr::Closure(_)
+            )
+        };
+        // if there is only one arg, and it's combinable, we can use compact style
+        let is_combinable = |arg| {
+            is_blocky(arg)
+                || matches!(
+                    arg,
+                    Expr::FuncCall(_)
+                        | Expr::Parenthesized(_)
+                        | Expr::Content(_)
+                        | Expr::Array(_)
+                        | Expr::Dict(_)
+                )
+        };
+
+        let fold_style = match self.get_fold_style(ctx, args) {
+            FoldStyle::Always => FoldStyle::Always,
+            _ if ctx.break_suppressed && arg_count == 1 => FoldStyle::Always,
+            _ if ctx.break_suppressed => FoldStyle::Fit,
+            _ => {
+                let mut fold_style = FoldStyle::Fit;
+                for (i, arg) in get_parenthesized_args(args).enumerate() {
+                    let expr = match arg {
+                        Arg::Pos(p) => p,
+                        Arg::Named(n) => n.expr(),
+                        Arg::Spread(s) => s.expr(),
+                    };
+                    if i < arg_count - 1 {
+                        if is_blocky(expr) {
+                            break;
+                        } else {
+                            continue;
+                        }
                     }
-                    Arg::Spread(s) => s.expr(),
-                };
-                fold_style = if matches!(
-                    inner,
-                    Expr::FuncCall(_) | Expr::FieldAccess(_) | Expr::Unary(_) | Expr::Binary(_)
-                ) {
-                    FoldStyle::Fit
-                } else {
-                    FoldStyle::Always
-                };
-                true
-            });
-        }
+                    if is_combinable(expr) {
+                        fold_style = if arg_count == 1 && !matches!(expr, Expr::FuncCall(_)) {
+                            FoldStyle::Always
+                        } else {
+                            FoldStyle::Compact
+                        }
+                    }
+                }
+                fold_style
+            }
+        };
 
         ListStylist::new(self)
             .keep_linebreak(self.config.blank_lines_upper_bound)
             .with_fold_style(fold_style)
-            .process_iterable_impl(ctx, children(), |ctx, child| {
+            .process_iterable_impl(ctx, get_children(), |ctx, child| {
                 // We should ignore additional args here.
                 child.cast().map(|arg| self.convert_arg(ctx, arg))
             })
@@ -134,11 +169,15 @@ impl<'a> PrettyPrinter<'a> {
 
     fn convert_args_in_math(&'a self, ctx: Context, args: Args<'a>) -> ArenaDoc<'a> {
         // strip spaces
+        let mut peek_linebreak = false;
         let children = {
             let children = args.to_untyped().children().as_slice();
             let i = children
                 .iter()
                 .position(|child| {
+                    if child.kind() == SyntaxKind::Space {
+                        peek_linebreak = child.text().has_linebreak();
+                    }
                     !matches!(child.kind(), SyntaxKind::LeftParen | SyntaxKind::Space)
                 })
                 .unwrap_or(0);
@@ -154,7 +193,9 @@ impl<'a> PrettyPrinter<'a> {
         let mut peek_hashed_arg = false;
         let inner = self.convert_flow_like_iter(ctx, children, |ctx, child| {
             let at_hashed_arg = peek_hashed_arg;
+            let at_linebreak = peek_linebreak;
             peek_hashed_arg = false;
+            peek_linebreak = false;
             match child.kind() {
                 SyntaxKind::Comma => FlowItem::tight_spaced(self.arena.text(",")),
                 SyntaxKind::Semicolon => {
@@ -164,6 +205,7 @@ impl<'a> PrettyPrinter<'a> {
                 SyntaxKind::Space => {
                     peek_hashed_arg = at_hashed_arg;
                     if child.text().has_linebreak() {
+                        peek_linebreak = true;
                         FlowItem::tight(self.arena.hardline())
                     } else {
                         FlowItem::none()
@@ -174,6 +216,14 @@ impl<'a> PrettyPrinter<'a> {
                         if is_ends_with_hashed_expr(arg.to_untyped().children()) {
                             peek_hashed_arg = true;
                         }
+                        let ctx = ctx.aligned(
+                            if at_linebreak || arg.to_untyped().kind() == SyntaxKind::MathDelimited
+                            {
+                                AlignMode::Inner
+                            } else {
+                                AlignMode::Never
+                            },
+                        );
                         FlowItem::spaced(self.convert_arg(ctx, arg))
                     } else {
                         FlowItem::none()

@@ -4,7 +4,7 @@ members = ["crates/*", "tests"]
 default-members = ["crates/typstyle"]
 
 [workspace.package]
-version = "0.13.3"
+version = "0.13.4"
 rust-version = "1.83"
 edition = "2021"
 authors = ["Wenzhuo Liu"]
@@ -14,8 +14,8 @@ repository = "https://github.com/Enter-tainer/typstyle"
 homepage = "https://enter-tainer.github.io/typstyle/"
 
 [workspace.dependencies]
-typstyle-core = { path = "crates/typstyle-core", version = "0.13.3" }
-typstyle = { path = "crates/typstyle", version = "0.13.3" }
+typstyle-core = { path = "crates/typstyle-core", version = "0.13.4" }
+typstyle = { path = "crates/typstyle", version = "0.13.4" }
 typstyle-consistency = { path = "crates/typstyle-consistency" }
 
 # Used in core
@@ -28,6 +28,7 @@ rustc-hash = "2.0"
 serde = "1.0"
 smallvec = "1"
 thiserror = "2"
+unicode-width = "0.1" # use the same version as in pretty
 wasm-bindgen = { version = "0.2" }
 
 # Use in CLI
@@ -48,7 +49,7 @@ pretty_assertions = "1.4.1"
 tempfile = "3"
 toml = "0.8"
 
-tinymist-world = { version = "0.13.12-rc4", default-features = false, features = [
+tinymist-world = { version = "0.13.12", default-features = false, features = [
   "system",
 ] }
 
@@ -75,4 +76,4 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
-tinymist-world = { git = "https://github.com/Myriad-Dreamin/tinymist", rev = "84569fb98c4eeea65d91677c31d803718143fc10" }
+# tinymist-world = { git = "https://github.com/Myriad-Dreamin/tinymist", rev = "84569fb98c4eeea65d91677c31d803718143fc10" }

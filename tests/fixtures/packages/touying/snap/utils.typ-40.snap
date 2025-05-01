@@ -1,7 +1,6 @@
 ---
 source: tests/src/unit.rs
 input_file: tests/fixtures/packages/touying/utils.typ
-snapshot_kind: text
 ---
 /*
  * This test case is copied from [touying]
@@ -29,13 +28,10 @@ snapshot_kind: text
         and type(dict-b.at(key))
           == dictionary
     ) {
-      res.insert(
-        key,
-        add-dicts(
-          res.at(key),
-          dict-b.at(key),
-        ),
-      )
+      res.insert(key, add-dicts(
+        res.at(key),
+        dict-b.at(key),
+      ))
     } else {
       res.insert(key, dict-b.at(key))
     }
@@ -62,8 +58,12 @@ snapshot_kind: text
 // -------------------------------------
 // Slide counter
 // -------------------------------------
-#let slide-counter = counter("touying-slide-counter")
-#let last-slide-counter = counter("touying-last-slide-counter")
+#let slide-counter = counter(
+  "touying-slide-counter",
+)
+#let last-slide-counter = counter(
+  "touying-last-slide-counter",
+)
 #let last-slide-number = context (
   last-slide-counter.final().first()
 )
@@ -377,15 +377,12 @@ snapshot_kind: text
       type(self.methods.at(key))
         == function
     ) {
-      methods.insert(
-        key,
-        (
-          ..args,
-        ) => self.methods.at(key)(
-          self: self,
-          ..args,
-        ),
-      )
+      methods.insert(key, (
+        ..args,
+      ) => self.methods.at(key)(
+        self: self,
+        ..args,
+      ))
     }
   }
   return methods
@@ -444,12 +441,10 @@ snapshot_kind: text
       .methods
       .convert-label-to-short-heading
   } else {
-    (self: none, lbl) => titlecase(
-      lbl
-        .replace(regex("^[^:]*:"), "")
-        .replace("_", " ")
-        .replace("-", " "),
-    )
+    (self: none, lbl) => titlecase(lbl
+      .replace(regex("^[^:]*:"), "")
+      .replace("_", " ")
+      .replace("-", " "))
   }
   convert-label-to-short-heading = convert-label-to-short-heading.with(
     self: self,
@@ -463,7 +458,9 @@ snapshot_kind: text
     return it.body
   }
   let lbl = str(it.label)
-  return convert-label-to-short-heading(lbl)
+  return convert-label-to-short-heading(
+    lbl,
+  )
 }
 
 
@@ -481,7 +478,9 @@ snapshot_kind: text
 ) = {
   let current-page = here().page()
   if not hierachical and level != auto {
-    let headings = query(heading).filter(h => (
+    let headings = query(
+      heading,
+    ).filter(h => (
       h.location().page()
         <= current-page
         and h.level <= depth
@@ -492,7 +491,9 @@ snapshot_kind: text
       default: none,
     )
   }
-  let headings = query(heading).filter(h => (
+  let headings = query(
+    heading,
+  ).filter(h => (
     h.location().page() <= current-page
       and h.level <= depth
   ))
@@ -679,12 +680,10 @@ snapshot_kind: text
     message: "self must have an info field",
   )
   if type(self.info.date) == datetime {
-    self.info.date.display(
-      self.at(
-        "datetime-format",
-        default: auto,
-      ),
-    )
+    self.info.date.display(self.at(
+      "datetime-format",
+      default: auto,
+    ))
   } else {
     self.info.date
   }
@@ -918,8 +917,12 @@ snapshot_kind: text
   // like `1fr` as well.
   // The label must be attached to content, so we use a show rule that doesn't
   // display anything as the anchor.
-  let before-label = label("touying-fit-height-before")
-  let after-label = label("touying-fit-height-after")
+  let before-label = label(
+    "touying-fit-height-before",
+  )
+  let after-label = label(
+    "touying-fit-height-after",
+  )
   [
     #show before-label: none
     #show after-label: none
@@ -930,20 +933,16 @@ snapshot_kind: text
   ]
 
   context {
-    let before = query(
-      selector(before-label).before(
-        here(),
-      ),
-    )
+    let before = query(selector(
+      before-label,
+    ).before(here()))
     let before-pos = before
       .last()
       .location()
       .position()
-    let after = query(
-      selector(after-label).before(
-        here(),
-      ),
-    )
+    let after = query(selector(
+      after-label,
+    ).before(here()))
     let after-pos = after
       .last()
       .location()
@@ -1161,10 +1160,10 @@ snapshot_kind: text
         // In contrast, `outset` preserves spacing and alignment at the cost of adding
         // a slight, visible border when the covered object is right next to the edge
         // of a color change.
-        named.insert(
-          "outset",
-          (top: 0.15em, bottom: 0.25em),
-        )
+        named.insert("outset", (
+          top: 0.15em,
+          bottom: 0.25em,
+        ))
       }
       stack(
         spacing: -wrapped-body-size.height,
@@ -1252,39 +1251,37 @@ snapshot_kind: text
     .split(",")
     .map(p => p.trim())
   let parse-part(part) = {
-    let match-until = part.match(
-      regex("^-([[:digit:]]+)$"),
-    )
+    let match-until = part.match(regex(
+      "^-([[:digit:]]+)$",
+    ))
     let match-beginning = part.match(
       regex("^([[:digit:]]+)-$"),
     )
-    let match-range = part.match(
-      regex("^([[:digit:]]+)-([[:digit:]]+)$"),
-    )
-    let match-single = part.match(
-      regex("^([[:digit:]]+)$"),
-    )
+    let match-range = part.match(regex(
+      "^([[:digit:]]+)-([[:digit:]]+)$",
+    ))
+    let match-single = part.match(regex(
+      "^([[:digit:]]+)$",
+    ))
     if match-until != none {
-      let parsed = int(
-        match-until.captures.first(),
-      )
+      let parsed = int(match-until
+        .captures
+        .first())
       // assert(parsed > 0, "parsed idx is non-positive")
       (until: parsed)
     } else if match-beginning != none {
-      let parsed = int(
-        match-beginning
-          .captures
-          .first(),
-      )
+      let parsed = int(match-beginning
+        .captures
+        .first())
       // assert(parsed > 0, "parsed idx is non-positive")
       (beginning: parsed)
     } else if match-range != none {
-      let parsed-first = int(
-        match-range.captures.first(),
-      )
-      let parsed-last = int(
-        match-range.captures.last(),
-      )
+      let parsed-first = int(match-range
+        .captures
+        .first())
+      let parsed-last = int(match-range
+        .captures
+        .last())
       // assert(parsed-first > 0, "parsed idx is non-positive")
       // assert(parsed-last > 0, "parsed idx is non-positive")
       (
@@ -1292,9 +1289,9 @@ snapshot_kind: text
         until: parsed-last,
       )
     } else if match-single != none {
-      let parsed = int(
-        match-single.captures.first(),
-      )
+      let parsed = int(match-single
+        .captures
+        .first())
       // assert(parsed > 0, "parsed idx is non-positive")
       parsed
     } else {
@@ -1341,7 +1338,9 @@ snapshot_kind: text
   } else if (
     type(visible-subslides) == str
   ) {
-    let parts = _parse-subslide-indices(visible-subslides)
+    let parts = _parse-subslide-indices(
+      visible-subslides,
+    )
     check-visible(idx, parts)
   } else if (
     type(visible-subslides) == content
@@ -1373,7 +1372,9 @@ snapshot_kind: text
 
     lower-okay and upper-okay
   } else {
-    panic("you may only provide a single integer, an array of integers, or a string")
+    panic(
+      "you may only provide a single integer, an array of integers, or a string",
+    )
   }
 }
 
@@ -1387,12 +1388,16 @@ snapshot_kind: text
     type(visible-subslides) == array
   ) {
     calc.max(
-      ..visible-subslides.map(s => last-required-subslide(s)),
+      ..visible-subslides.map(s => last-required-subslide(
+        s,
+      )),
     )
   } else if (
     type(visible-subslides) == str
   ) {
-    let parts = _parse-subslide-indices(visible-subslides)
+    let parts = _parse-subslide-indices(
+      visible-subslides,
+    )
     last-required-subslide(parts)
   } else if (
     type(visible-subslides)
@@ -1415,7 +1420,9 @@ snapshot_kind: text
     }
     last
   } else {
-    panic("you may only provide a single integer, an array of integers, or a string")
+    panic(
+      "you may only provide a single integer, an array of integers, or a string",
+    )
   }
 }
 
@@ -1520,7 +1527,9 @@ snapshot_kind: text
   let contents = subslides-contents.map(it => it.last())
   if stretch {
     context {
-      let sizes = contents.map(c => measure(c))
+      let sizes = contents.map(c => measure(
+        c,
+      ))
       let max-width = calc.max(
         ..sizes.map(sz => sz.width),
       )
@@ -1530,15 +1539,11 @@ snapshot_kind: text
       for (subslides, content) in (
         subslides-contents
       ) {
-        only(
-          self: self,
-          subslides,
-          box(
-            width: max-width,
-            height: max-height,
-            align(position, content),
-          ),
-        )
+        only(self: self, subslides, box(
+          width: max-width,
+          height: max-height,
+          align(position, content),
+        ))
       }
     }
   } else {
@@ -1618,7 +1623,9 @@ snapshot_kind: text
 ) = {
   let end = if end == none {
     if count == none {
-      panic("You must specify either end or count.")
+      panic(
+        "You must specify either end or count.",
+      )
     } else {
       start + count
     }
@@ -1716,9 +1723,9 @@ snapshot_kind: text
   if (
     show-notes-on-second-screen != none
   ) {
-    slide-note-state.update(
-      setting(note),
-    )
+    slide-note-state.update(setting(
+      note,
+    ))
   }
 }
 

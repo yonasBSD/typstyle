@@ -1,12 +1,11 @@
 ---
 source: tests/src/unit.rs
 input_file: tests/fixtures/unit/func/func-call-with-newline.typ
-snapshot_kind: text
 ---
 #import "@preview/fletcher:0.5.0" as fletcher: (
   diagram,
-  node,
   edge,
+  node,
 )
 #set page(
   width: auto,

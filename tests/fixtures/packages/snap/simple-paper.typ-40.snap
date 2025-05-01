@@ -1,7 +1,6 @@
 ---
 source: tests/src/unit.rs
 input_file: tests/fixtures/packages/simple-paper.typ
-snapshot_kind: text
 ---
 #let project(
   title: "",
@@ -70,14 +69,12 @@ snapshot_kind: text
 
   // Title
   align(center)[
-    #block(
-      text(
-        font: title-font,
-        weight: 700,
-        1.75em,
-        title,
-      ),
-    )
+    #block(text(
+      font: title-font,
+      weight: 700,
+      1.75em,
+      title,
+    ))
     #v(0.5em)
   ]
 
@@ -106,17 +103,17 @@ snapshot_kind: text
     #v(12pt)
     #set text(font: caption-font)
     #it
-    #par()[#text(
-        size: 0.0em,
-      )[#h(0.0em)]]
+    #par()[#text(size: 0.0em)[#h(
+          0.0em,
+        )]]
     #v(12pt)
   ]
 
   show image: it => [
     #it
-    #par()[#text(
-        size: 0.0em,
-      )[#h(0.0em)]]
+    #par()[#text(size: 0.0em)[#h(
+          0.0em,
+        )]]
   ]
 
   show table: it => [
@@ -155,7 +152,9 @@ snapshot_kind: text
 
   body
 }
-#let problem-counter = counter("problem")
+#let problem-counter = counter(
+  "problem",
+)
 #problem-counter.step()
 
 #let problem(body) = {

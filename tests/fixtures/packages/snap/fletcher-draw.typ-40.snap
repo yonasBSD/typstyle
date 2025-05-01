@@ -73,9 +73,9 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
     )
   }
 
-  (
-    node.post
-  )(result) // post-process (e.g., hide)
+  (node.post)(
+    result,
+  ) // post-process (e.g., hide)
 
   // Draw debug stuff
   if debug >= 1 {
@@ -138,12 +138,10 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
     edge.label-pos + 1e-3,
   )
 
-  let θ = wrap-angle-180(
-    angle-between(
-      curve-point,
-      curve-point-ε,
-    ),
-  )
+  let θ = wrap-angle-180(angle-between(
+    curve-point,
+    curve-point-ε,
+  ))
   let θ-normal = (
     θ
       + if edge.label-side == right {
@@ -407,10 +405,11 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
   // Draw marks
   let curve(t) = vector.add(
     center,
-    vector-polar(
-      radius,
-      lerp(start, stop, t),
-    ),
+    vector-polar(radius, lerp(
+      start,
+      stop,
+      t,
+    )),
   )
   for mark in edge.marks {
     place-mark-on-curve(
@@ -535,10 +534,9 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
 
   let rounded-corners
   if edge.corner-radius != none {
-    rounded-corners = range(
-      1,
-      θs.len(),
-    ).map(calculate-rounded-corner)
+    rounded-corners = range(1, θs.len()).map(
+      calculate-rounded-corner,
+    )
   }
 
   let lerp-scale(t, i) = {
@@ -605,9 +603,10 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
         ))
       }
 
-      Δphase += vector-len(
-        vector.sub(from, to),
-      )
+      Δphase += vector-len(vector.sub(
+        from,
+        to,
+      ))
     } else {
       // rounded corners
 
@@ -641,9 +640,10 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
           ),
         )
 
-        Δphase += vector-len(
-          vector.sub(from, to),
-        )
+        Δphase += vector-len(vector.sub(
+          from,
+          to,
+        ))
 
         for d in edge.extrude {
           if delta != 0deg {
@@ -711,7 +711,9 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
           kind: "line",
           final-vertices: (from, to),
           marks: marks,
-          stroke: stroke-with-phase(phase),
+          stroke: stroke-with-phase(
+            phase,
+          ),
         )
         + label-options,
       debug: debug,
@@ -768,15 +770,14 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
       .map(point => {
         // funky disagreement between coordinate systems??
         point.at(1) *= -1
-        vector-2d(
-          vector.scale(point, 1cm),
-        )
+        vector-2d(vector.scale(
+          point,
+          1cm,
+        ))
       })
-      .sorted(
-        key: point => vector-len(
-          vector.sub(point, target),
-        ),
-      )
+      .sorted(key: point => vector-len(
+        vector.sub(point, target),
+      ))
 
     let anchor = anchor-points.at(
       -1,
@@ -921,9 +922,9 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
           ),
         debug: debug,
       )
-      (
-        edge.post
-      )(obj) // post-process (e.g., hide)
+      (edge.post)(
+        obj,
+      ) // post-process (e.g., hide)
     },
   )
 }
@@ -945,10 +946,10 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
     .zip(θs)
     .map(((point, φ)) => cetz.draw.line(
       point,
-      vector.add(
-        point,
-        vector-polar(10cm, φ),
-      ), // ray emanating from node
+      vector.add(point, vector-polar(
+        10cm,
+        φ,
+      )), // ray emanating from node
     ))
 
   let intersection-objects = nodes
@@ -978,9 +979,9 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
           + (final-vertices: anchors),
         debug: debug,
       )
-      (
-        edge.post
-      )(obj) // post-process (e.g., hide)
+      (edge.post)(
+        obj,
+      ) // post-process (e.g., hide)
     },
   )
 }
@@ -1013,7 +1014,9 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
       .slice(-2), // last two vertices
   )
 
-  let dummy-lines = end-segments.map(points => cetz.draw.line(..points))
+  let dummy-lines = end-segments.map(points => cetz.draw.line(
+    ..points,
+  ))
 
   let intersection-objects = nodes
     .zip(dummy-lines)
@@ -1038,7 +1041,9 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
     (from, to),
     anchors => {
       let edge = edge
-      edge.final-vertices.at(0) = anchors.at(0)
+      edge.final-vertices.at(
+        0,
+      ) = anchors.at(0)
       edge.final-vertices.at(
         -1,
       ) = anchors.at(1)
@@ -1046,9 +1051,9 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
         edge,
         debug: debug,
       )
-      (
-        edge.post
-      )(obj) // post-process (e.g., hide)
+      (edge.post)(
+        obj,
+      ) // post-process (e.g., hide)
     },
   )
 }
@@ -1104,10 +1109,9 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
   grid,
   debug: false,
 ) = {
-  let (
-    x-lims,
-    y-lims,
-  ) = range(2).map(axis => (
+  let (x-lims, y-lims) = range(
+    2,
+  ).map(axis => (
     grid.centers.at(axis).at(0)
       - grid.cell-sizes.at(axis).at(0)
         / 2,
@@ -1153,10 +1157,10 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
       y-lims,
     )
     if a == b {
-      b = vector.add(
-        b,
-        (1e-3pt, 1e-3pt),
-      )
+      b = vector.add(b, (
+        1e-3pt,
+        1e-3pt,
+      ))
     }
     draw.rect(
       a,
@@ -1164,13 +1168,11 @@ input_file: tests/fixtures/packages/fletcher-draw.typ
       stroke: DEBUG_COLOR + .5pt,
     )
 
-    draw.set-style(
-      stroke: (
-        paint: DEBUG_COLOR,
-        thickness: .3pt,
-        dash: "densely-dotted",
-      ),
-    )
+    draw.set-style(stroke: (
+      paint: DEBUG_COLOR,
+      thickness: .3pt,
+      dash: "densely-dotted",
+    ))
 
     for axis in range(2) {
       let swap(a, b) = if axis != 1 {
