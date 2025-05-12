@@ -90,7 +90,7 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     pub(super) fn convert_heading(&'a self, ctx: Context, heading: Heading<'a>) -> ArenaDoc<'a> {
-        self.convert_flow_like(ctx, heading.to_untyped(), |ctx, child| {
+        self.convert_flow_like(ctx, heading.to_untyped(), |ctx, child, _| {
             if child.kind() == SyntaxKind::HeadingMarker {
                 FlowItem::spaced(self.arena.text(child.text().as_str()))
             } else if let Some(markup) = child.cast() {
@@ -124,7 +124,7 @@ impl<'a> PrettyPrinter<'a> {
     ) -> ArenaDoc<'a> {
         let node = term_item.to_untyped();
         let mut seen_term = false;
-        self.convert_flow_like(ctx, node, |ctx, child| match child.kind() {
+        self.convert_flow_like(ctx, node, |ctx, child, _| match child.kind() {
             SyntaxKind::TermMarker => FlowItem::spaced(self.arena.text(child.text().as_str())),
             SyntaxKind::Colon => FlowItem::tight_spaced(self.arena.text(child.text().as_str())),
             SyntaxKind::Space if child.text().has_linebreak() => {
@@ -159,7 +159,7 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn convert_list_item_like(&'a self, ctx: Context, item: &'a SyntaxNode) -> ArenaDoc<'a> {
-        self.convert_flow_like(ctx, item, |ctx, child| match child.kind() {
+        self.convert_flow_like(ctx, item, |ctx, child, _| match child.kind() {
             SyntaxKind::ListMarker | SyntaxKind::EnumMarker | SyntaxKind::TermMarker => {
                 FlowItem::spaced(self.arena.text(child.text().as_str()))
             }
@@ -287,8 +287,8 @@ impl<'a> PrettyPrinter<'a> {
             let nodes = &line.nodes;
             let len = nodes.len();
             len > 0 && is_block_elem(nodes[0])
-                || len == 2 && nodes[0].kind() == SyntaxKind::Hash
                 || len == 1 && nodes[0].kind() != SyntaxKind::Text
+                || len == 2 && nodes[0].kind() == SyntaxKind::Hash
         }
 
         let mut doc = self.arena.nil();
@@ -323,7 +323,8 @@ impl<'a> PrettyPrinter<'a> {
             }
             if breaks == 1
                 && !nodes.last().is_some_and(|last| {
-                    last.kind() == SyntaxKind::LineComment || is_block_elem(last)
+                    is_block_elem(last)
+                        || matches!(last.kind(), SyntaxKind::LineComment | SyntaxKind::Label)
                 })
                 && !is_line_exclusive(line)
                 && !repr.lines.get(i + 1).is_some_and(is_line_exclusive)
