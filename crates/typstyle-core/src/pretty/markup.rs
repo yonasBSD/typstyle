@@ -71,11 +71,7 @@ impl<'a> PrettyPrinter<'a> {
             } else if let Some(text) = child.cast::<Text>() {
                 doc += self.convert_text(text);
             } else if child.kind() == SyntaxKind::RawTrimmed {
-                doc += if child.text().has_linebreak() {
-                    self.arena.hardline()
-                } else {
-                    self.arena.space()
-                }
+                doc += self.convert_space_untyped(child);
             }
         }
         doc
@@ -199,7 +195,7 @@ impl<'a> PrettyPrinter<'a> {
         }
 
         let repr = collect_markup_repr(markup);
-        let doc = if self.config.wrap_text && scope != MarkupScope::InlineItem {
+        let body = if self.config.wrap_text && scope != MarkupScope::InlineItem {
             self.convert_markup_body_reflow(ctx, &repr)
         } else {
             self.convert_markup_body(ctx, &repr)
@@ -241,7 +237,7 @@ impl<'a> PrettyPrinter<'a> {
                 Boundary::Break | Boundary::WeakBreak => self.arena.hardline(),
             }
         };
-        doc.enclose(get_delim(repr.start_bound), get_delim(repr.end_bound))
+        body.enclose(get_delim(repr.start_bound), get_delim(repr.end_bound))
     }
 
     fn convert_markup_body(&'a self, ctx: Context, repr: &MarkupRepr<'a>) -> ArenaDoc<'a> {
@@ -278,16 +274,52 @@ impl<'a> PrettyPrinter<'a> {
         doc
     }
 
+    /// With text-wrapping enabled, spaces may turn to linebreaks, and linebreaks may turn to spaces, if safe.
     fn convert_markup_body_reflow(&'a self, ctx: Context, repr: &MarkupRepr<'a>) -> ArenaDoc<'a> {
-        fn can_turn_exclusive(node: &&SyntaxNode) -> bool {
+        /// For NOT space -> soft-line: \
+        /// Ensure they are not misinterpreted as markup markers after reflow.
+        fn cannot_break_before(node: &&SyntaxNode) -> bool {
+            matches!(node.text().as_str(), "=" | "+" | "-" | "/")
+        }
+
+        /// For space -> hard-line: \
+        /// Prefers block equations exclusive to a single line.
+        fn prefer_exclusive(node: &&SyntaxNode) -> bool {
             is_block_equation(node)
         }
 
-        fn is_line_exclusive(line: &MarkupLine) -> bool {
+        /// For NOT hard-line -> soft-line: \
+        /// Should always break after block elements or line comments.
+        fn should_break_after(node: &SyntaxNode) -> bool {
+            is_block_elem(node) || matches!(node.kind(), SyntaxKind::LineComment)
+        }
+
+        /// For NOT hard-line -> soft-line: \
+        /// Breaking after them is visually better.
+        fn preserve_break_after(node: &SyntaxNode) -> bool {
+            matches!(
+                node.kind(),
+                SyntaxKind::BlockComment
+                    | SyntaxKind::Linebreak
+                    | SyntaxKind::Label
+                    | SyntaxKind::CodeBlock
+                    | SyntaxKind::ContentBlock
+                    | SyntaxKind::Conditional
+                    | SyntaxKind::WhileLoop
+                    | SyntaxKind::ForLoop
+                    | SyntaxKind::Contextual
+            ) || is_block_equation(node)
+                || is_block_raw(node)
+        }
+
+        /// For NOT hard-line -> soft-line: \
+        /// Keeps the line exclusive (prevents soft breaks) when:
+        /// - It contains only one non-text node, or
+        /// - It contains exactly two nodes where the first is a Hash, such as `#figure()`.
+        fn preserve_exclusive(line: &MarkupLine) -> bool {
             let nodes = &line.nodes;
             let len = nodes.len();
-            len > 0 && is_block_elem(nodes[0])
-                || len == 1 && nodes[0].kind() != SyntaxKind::Text
+            len == 1 && nodes[0].kind() != SyntaxKind::Text
                 || len == 2 && nodes[0].kind() == SyntaxKind::Hash
         }
 
@@ -298,17 +330,14 @@ impl<'a> PrettyPrinter<'a> {
             } = line;
             for (j, node) in nodes.iter().enumerate() {
                 doc += if node.kind() == SyntaxKind::Space {
-                    if nodes.get(j + 1).is_some_and(can_turn_exclusive)
-                        || j > 0 && nodes.get(j - 1).is_some_and(can_turn_exclusive)
+                    if nodes.get(j + 1).is_some_and(cannot_break_before) {
+                        self.arena.space()
+                    } else if nodes.get(j + 1).is_some_and(prefer_exclusive)
+                        || nodes.get(j - 1).is_some_and(prefer_exclusive)
                     {
                         self.arena.hardline()
-                    } else if !nodes
-                        .get(j + 1)
-                        .is_some_and(|peek| matches!(peek.text().as_str(), "=" | "+" | "-" | "/"))
-                    {
-                        self.arena.softline()
                     } else {
-                        self.arena.space()
+                        self.arena.softline()
                     }
                 } else if let Some(text) = node.cast::<Text>() {
                     self.convert_text_wrapped(text)
@@ -321,13 +350,14 @@ impl<'a> PrettyPrinter<'a> {
                     self.convert_trivia_untyped(node)
                 };
             }
+            // Should not eat trailing parbreaks.
             if breaks == 1
-                && !nodes.last().is_some_and(|last| {
-                    is_block_elem(last)
-                        || matches!(last.kind(), SyntaxKind::LineComment | SyntaxKind::Label)
-                })
-                && !is_line_exclusive(line)
-                && !repr.lines.get(i + 1).is_some_and(is_line_exclusive)
+                && i + 1 != repr.lines.len()
+                && !nodes
+                    .last()
+                    .is_some_and(|last| should_break_after(last) || preserve_break_after(last))
+                && !preserve_exclusive(line)
+                && !preserve_exclusive(&repr.lines[i + 1])
             {
                 doc += self.arena.softline();
             } else if breaks > 0 {
@@ -494,4 +524,8 @@ fn is_block_elem(it: &SyntaxNode) -> bool {
 fn is_block_equation(it: &SyntaxNode) -> bool {
     it.cast::<Equation>()
         .is_some_and(|equation| equation.block())
+}
+
+fn is_block_raw(it: &SyntaxNode) -> bool {
+    it.cast::<Raw>().is_some_and(|raw| raw.block())
 }
